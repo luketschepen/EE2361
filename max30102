@@ -1,6 +1,6 @@
 /*
  * File:   PulseOX.c
- * Author:Dhayalan balasubramanian
+ * Author: jansiranibalasubramanian
  *
  * Created on April 10, 2024, 9:26 AM
  */
@@ -9,41 +9,153 @@
 #include <xc.h>
 #include <stdint.h>
 
+
+// CW1: FLASH CONFIGURATION WORD 1 (see PIC24 Family Reference Manual 24.1)
+#pragma config ICS = PGx1          // Comm Channel Select (Emulator EMUC1/EMUD1 pins are shared with PGC1/PGD1)
+#pragma config FWDTEN = OFF        // Watchdog Timer Enable (Watchdog Timer is disabled)
+#pragma config GWRP = OFF          // General Code Segment Write Protect (Writes to program memory are allowed)
+#pragma config GCP = OFF           // General Code Segment Code Protect (Code protection is disabled)
+#pragma config JTAGEN = OFF        // JTAG Port Enable (JTAG port is disabled)
+
+
+// CW2: FLASH CONFIGURATION WORD 2 (see PIC24 Family Reference Manual 24.1)
+#pragma config I2C1SEL = PRI       // I2C1 Pin Location Select (Use default SCL1/SDA1 pins)
+#pragma config IOL1WAY = OFF       // IOLOCK Protection (IOLOCK may be changed via unlocking seq)
+#pragma config OSCIOFNC = ON       // Primary Oscillator I/O Function (CLKO/RC15 functions as I/O pin)
+#pragma config FCKSM = CSECME      // Clock Switching and Monitor (Clock switching is enabled, 
+                                       // Fail-Safe Clock Monitor is enabled)
+#pragma config FNOSC = FRCPLL
+
+
 // Define I2C communication parameters
-#define MAX30102_I2C_ADDRESS 0xAE  // I2C address of MAX30102 sensor
+#define MAX30102_ADDRESS_WRITE 0xAE //writing
+#define MAX30102_ADDRESS_READ  0xAF //reading
+
+// Define register addresses
+#define FIFO_WR_PTR    0x04
+#define FIFO_RD_PTR    0x06
+#define FIFO_OVERFLOW  0x05
+#define FIFO_DATA      0x07
+
+#define NUM_SAMPLES_TO_READ 64
 
 
-
-void pic24_init(void){
-
+/*
+ * initialize the PIC24 microcontroller, 
+ * mostly done to setup the LCD. 
+ */
+void pic24_init() {
+    CLKDIVbits.RCDIV = 0;  //clock to 16
+    AD1PCFG = 0xffff; //all pins digital
+    TRISAbits.TRISA0 = 0; 
+    I2C2BRG = 0x9D;
+    I2C2CONbits.I2CEN = 1;
+    _I2CSIDL = 0;
+    IFS3bits.MI2C2IF=0;
 }
 
-void max30102_init(void);
-void max30102_read_data(uint8_t *data, uint8_t len);
+
+void I2C_start() {
+    I2C2CONbits.SEN = 1;   // Initiate start condition
+    while (I2C2CONbits.SEN);
+};
+
+void I2C_stop() {
+    I2C2CONbits.PEN = 1;   // Initiate stop condition
+    while (I2C2CONbits.PEN);
+};
+
+// Function to write data over I2C
+void I2C_write(uint8_t data) {
+    I2C2TRN = data;        // Load data into transmit buffer
+    while (I2C2STATbits.TRSTAT); // Wait for transmission to complete
+    while (I2C2STATbits.ACKSTAT); // Wait for ACK/NACK from slave
+}
+
+// Function to read data over I2C
+uint8_t I2C_read() {
+    I2C2CONbits.RCEN = 1; // Enable receive mode
+    while (!I2C2STATbits.RBF); // Wait for receive buffer to be full
+    return I2C2RCV;        // Read received data
+}
+
+void I2C_repeated_start() {
+    I2C2CONbits.RSEN = 1;  // Initiate repeated start condition
+    while (I2C2CONbits.RSEN); // Wait for repeated start condition to complete
+}
+
 
 // Initialize MAX30102 sensor
 void max30102_init(void) {
-
+    
+    I2C2BRG = 0x25; //set to a clock freq of 400kHz and 16MHz Fcy/ BAUD RATE
+    TRISBbits.TRISB6 = 1;  // SDA pin as input
+    TRISBbits.TRISB7 = 1;  // SCL pin as input
+    I2C2CONbits.I2CEN = 1; //Enable I2C mode
+    //I2C2CONbits.SMODE = 0;
+    I2C2CONbits.DISSLW = 1;
+    IFS3bits.MI2C2IF = 0; // clr Int flag
 }
 
 // Read data from MAX30102 sensor
-void max30102_read_data(uint8_t *data, uint8_t len) {
+void read_SP02_measurements() {
+    uint8_t FIFO_WR_PTR, FIFO_RD_PTR;
+    uint8_t NUM_AVAILABLE_SAMPLES, NUM_SAMPLES_TO_READ;
+    uint32_t LED1_sample, LED2_sample;
 
+    // First transaction: Get the FIFO_WR_PTR
+    I2C_start(); 
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+    I2C_write(FIFO_WR_PTR); // Send address of FIFO_WR_PTR
+    I2C_repeated_start(); // Repeated start condition
+    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
+    FIFO_WR_PTR = I2C_read(); // Read FIFO_WR_PTR
+    I2C_stop(); 
+
+    // Evaluate the number of samples to be read from the FIFO
+    NUM_AVAILABLE_SAMPLES = (FIFO_WR_PTR - FIFO_RD_PTR + FIFO_DEPTH) % FIFO_DEPTH;
+    NUM_SAMPLES_TO_READ = MIN(NUM_AVAILABLE_SAMPLES, MAX_SAMPLES_TO_READ);
+
+    // Second transaction: Read NUM_SAMPLES_TO_READ samples from the FIFO
+    I2C_start(); 
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+    I2C_write(FIFO_RD_PTR); // Send address of FIFO_DATA
+    I2C_repeated_start(); 
+    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
+    for (int i = 0; i < NUM_SAMPLES_TO_READ; i++) {
+        // Read LED1 sample
+        LED1_sample = I2C_read() << 16;
+        LED1_sample |= I2C_read() << 8;
+        LED1_sample |= I2C_read();
+        
+        // Read LED2 sample
+        LED2_sample = I2C_read() << 16;
+        LED2_sample |= I2C_read() << 8;
+        LED2_sample |= I2C_read();
+        
+        // Process LED1 and LED2 samples
+        process_SP02_data(LED1_sample, LED2_sample); //need to be done next
+    }
+    I2C_stop(); // Stop condition
+
+    // Update FIFO_RD_PTR
+    FIFO_RD_PTR = (FIFO_RD_PTR + NUM_SAMPLES_TO_READ) % FIFO_DEPTH;
+    I2C_start(); // Start condition
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+    I2C_write(FIFO_RD_PTR); // Send address of FIFO_RD_PTR
+    I2C_write(FIFO_RD_PTR); // Write FIFO_RD_PTR
+    I2C_stop(); // Stop condition
 }
 
-// Example usage
+
+
+
+
 int main(void) {
-    uint8_t sensor_data[4];  // Array to store sensor data
-
-    
-    max30102_init();
-    
-    while (1) {
-        // Read data from MAX30102 sensor
-        max30102_read_data(sensor_data, sizeof(sensor_data));
+    while(1){
         
-
     }
     
     return 0;
+    
 }
