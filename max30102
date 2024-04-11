@@ -1,11 +1,3 @@
-/*
- * File:   PulseOX.c
- * Author: jansiranibalasubramanian
- *
- * Created on April 10, 2024, 9:26 AM
- */
-
-
 #include <xc.h>
 #include <stdint.h>
 
@@ -36,10 +28,11 @@
 #define FIFO_RD_PTR    0x06
 #define FIFO_OVERFLOW  0x05
 #define FIFO_DATA      0x07
+#define PART_ID        0xFF
 
 #define NUM_SAMPLES_TO_READ 64
 
-
+uint32_t partID;
 /*
  * initialize the PIC24 microcontroller, 
  * mostly done to setup the LCD. 
@@ -97,65 +90,72 @@ void max30102_init(void) {
     IFS3bits.MI2C2IF = 0; // clr Int flag
 }
 
-// Read data from MAX30102 sensor
-void read_SP02_measurements() {
-    uint8_t FIFO_WR_PTR, FIFO_RD_PTR;
-    uint8_t NUM_AVAILABLE_SAMPLES, NUM_SAMPLES_TO_READ;
-    uint32_t LED1_sample, LED2_sample;
-
-    // First transaction: Get the FIFO_WR_PTR
-    I2C_start(); 
-    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-    I2C_write(FIFO_WR_PTR); // Send address of FIFO_WR_PTR
-    I2C_repeated_start(); // Repeated start condition
-    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
-    FIFO_WR_PTR = I2C_read(); // Read FIFO_WR_PTR
-    I2C_stop(); 
-
-    // Evaluate the number of samples to be read from the FIFO
-    NUM_AVAILABLE_SAMPLES = (FIFO_WR_PTR - FIFO_RD_PTR + FIFO_DEPTH) % FIFO_DEPTH;
-    NUM_SAMPLES_TO_READ = MIN(NUM_AVAILABLE_SAMPLES, MAX_SAMPLES_TO_READ);
-
-    // Second transaction: Read NUM_SAMPLES_TO_READ samples from the FIFO
-    I2C_start(); 
-    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-    I2C_write(FIFO_RD_PTR); // Send address of FIFO_DATA
-    I2C_repeated_start(); 
-    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
-    for (int i = 0; i < NUM_SAMPLES_TO_READ; i++) {
-        // Read LED1 sample
-        LED1_sample = I2C_read() << 16;
-        LED1_sample |= I2C_read() << 8;
-        LED1_sample |= I2C_read();
-        
-        // Read LED2 sample
-        LED2_sample = I2C_read() << 16;
-        LED2_sample |= I2C_read() << 8;
-        LED2_sample |= I2C_read();
-        
-        // Process LED1 and LED2 samples
-        process_SP02_data(LED1_sample, LED2_sample); //need to be done next
-    }
-    I2C_stop(); // Stop condition
-
-    // Update FIFO_RD_PTR
-    FIFO_RD_PTR = (FIFO_RD_PTR + NUM_SAMPLES_TO_READ) % FIFO_DEPTH;
-    I2C_start(); // Start condition
-    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-    I2C_write(FIFO_RD_PTR); // Send address of FIFO_RD_PTR
-    I2C_write(FIFO_RD_PTR); // Write FIFO_RD_PTR
-    I2C_stop(); // Stop condition
-}
-
+//// Read data from MAX30102 sensor
+//void read_SP02_measurements() {
+//    uint8_t FIFO_WR_PTR, FIFO_RD_PTR;
+//    uint8_t NUM_AVAILABLE_SAMPLES, NUM_SAMPLES_TO_READ;
+//    uint32_t LED1_sample, LED2_sample;
+//
+//    // First transaction: Get the FIFO_WR_PTR
+//    I2C_start(); 
+//    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+//    I2C_write(FIFO_WR_PTR); // Send address of FIFO_WR_PTR
+//    I2C_repeated_start(); // Repeated start condition
+//    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
+//    FIFO_WR_PTR = I2C_read(); // Read FIFO_WR_PTR
+//    I2C_stop(); 
+//
+//    // Evaluate the number of samples to be read from the FIFO
+//    NUM_AVAILABLE_SAMPLES = (FIFO_WR_PTR - FIFO_RD_PTR + FIFO_DEPTH) % FIFO_DEPTH;
+//    NUM_SAMPLES_TO_READ = MIN(NUM_AVAILABLE_SAMPLES, MAX_SAMPLES_TO_READ);
+//
+//    // Second transaction: Read NUM_SAMPLES_TO_READ samples from the FIFO
+//    I2C_start(); 
+//    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+//    I2C_write(FIFO_RD_PTR); // Send address of FIFO_DATA
+//    I2C_repeated_start(); 
+//    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
+//    for (int i = 0; i < NUM_SAMPLES_TO_READ; i++) {
+//        // Read LED1 sample
+//        LED1_sample = I2C_read() << 16;
+//        LED1_sample |= I2C_read() << 8;
+//        LED1_sample |= I2C_read();
+//        
+//        // Read LED2 sample
+//        LED2_sample = I2C_read() << 16;
+//        LED2_sample |= I2C_read() << 8;
+//        LED2_sample |= I2C_read();
+//        
+//        // Process LED1 and LED2 samples
+//        process_SP02_data(LED1_sample, LED2_sample); //need to be done next
+//    }
+//    I2C_stop(); // Stop condition
+//
+//    // Update FIFO_RD_PTR
+//    FIFO_RD_PTR = (FIFO_RD_PTR + NUM_SAMPLES_TO_READ) % FIFO_DEPTH;
+//    I2C_start(); // Start condition
+//    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+//    I2C_write(FIFO_RD_PTR); // Send address of FIFO_RD_PTR
+//    I2C_write(FIFO_RD_PTR); // Write FIFO_RD_PTR
+//    I2C_stop(); // Stop condition
+//}
+//
 
 
 
 
 int main(void) {
     while(1){
-        
+
+        //Testing for PartID
+        I2C_start(); 
+        I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+        I2C_write(PART_ID); // Send address of PART_ID
+        I2C_repeated_start(); // Repeated start condition
+        I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
+        partID = I2C_read(); // Read PART_ID
+        I2C_stop();
     }
     
     return 0;
-    
 }
