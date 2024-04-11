@@ -24,13 +24,13 @@ void lcd_init(void){
     I2C1CONbits.I2CEN = 1; //Enable I2C Mode
     
     //initialization from Grove-LCD data-sheet
-    delay_ms(40);//wait > 30ms
+    delay_ms(100);//wait > 30ms
     
-    lcd_cmd(00111100); // function set 0011NFXX N = line mode 1/2 (0/1) F = display off/on (0/1)
+    lcd_cmd(00111000); // function set 0011NFXX N = line mode 1/2 (0/1) F = display off/on (0/1)
     
     delay_ms(1); //wait > 39 usec
     
-    lcd_cmd(00001110); //display ON/OFF Control 00001DCB D = display off/on (0/1) C = cursor off/on (0/1) B = blink off/on (0/1)
+    lcd_cmd(00001100); //display ON/OFF Control 00001DCB D = display off/on (0/1) C = cursor off/on (0/1) B = blink off/on (0/1)
     
     delay_ms(1); //wait > 39 usec
     
@@ -38,7 +38,7 @@ void lcd_init(void){
     
     delay_ms(2); //wait > 1.53ms
     
-    lcd_cmd(00000100); //entry mode set 000001IS I = decrement/increment mode (0/1) S = entire shift off/on (0/1)
+    lcd_cmd(00000110); //entry mode set 000001IS I = decrement/increment mode (0/1) S = entire shift off/on (0/1)
  
     delay_ms(1); //doesn't specify but why not //end initialization
 }
