@@ -39,6 +39,8 @@
 #define FIFO_DATA      0x07
 #define FIFO_DEPTH     32
 #define PART_ID        0xFF
+#define INTE2          0x03
+#define TEMP_CONFIG    0x21
 uint32_t partID;
 uint32_t FIFO_WR_PTR_DATA;
 #define NUM_SAMPLES_TO_READ 50 //50 / 100 / 200/ 400/ 800
