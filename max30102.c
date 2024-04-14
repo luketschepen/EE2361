@@ -140,19 +140,18 @@ void max30102_write_config_SP02() {
 
     I2C_write(0x0A); 
     //LATAbits.LATA0 = 1;
-    I2C_write(0b00100001);       
+    I2C_write(0b00100111);   //00100111    00100001
 
     I2C_stop();
 }
 
 void max30102_write_config_FIFO() {
-    LATAbits.LATA0 = 1;
     I2C_start();  
     I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
 
     I2C_write(0x08); 
 
-    I2C_write(0b10110010);       
+    I2C_write(0x40);     //0b10111111   
 
     I2C_stop();
 }
@@ -163,7 +162,18 @@ void max30102_write_config_FIFO() {
 
     I2C_write(0x09); 
 
-    I2C_write(0b01000011);       
+    I2C_write(0X03);       
+
+    I2C_stop();
+}
+ 
+ void max30102_write_config_RESET_MODE() {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(0x09); 
+
+    I2C_write(0b01000000);       
 
     I2C_stop();
 }
@@ -174,7 +184,7 @@ void max30102_write_config_FIFO() {
 
     I2C_write(0x0C); 
 
-    I2C_write(0x3F);       
+    I2C_write(0x1F);       
 
     I2C_stop();
 }
@@ -196,7 +206,7 @@ void max30102_write_config_LED_CONTROL() {
 
     I2C_write(0x11); 
 
-    I2C_write(00010010);       
+    I2C_write(0b00010010);       
 
     I2C_stop();
 }
@@ -286,6 +296,10 @@ void max30102_read_partID() {
 int main(void) {
     pic24_init();
     max30102_init();
+    max30102_write_config_RESET_MODE();
+    for (int i = 0; i< 100; i++){
+        i++ ;
+    }
     max30102_write_config_MODE();
     max30102_write_config_FIFO();
     max30102_write_config_SP02();
