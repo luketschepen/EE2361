@@ -31,7 +31,7 @@
 #define MAX30102_ADDRESS_WRITE 0xAE //writing
 #define MAX30102_ADDRESS_READ  0xAF //reading
 
-#define SLAVE_ID_write 0b10101110 //same as above (for consistency)
+#define SLAVE_ID_write 0b10101110 //same\ as above (for consistency)
 #define SLAVE_ID_read  0b10101111
 
 // Define register addresses
@@ -42,7 +42,7 @@
 #define FIFO_DEPTH     32
 #define PART_ID        0xFF
 uint32_t partID;
-
+uint32_t FIFO_WR_PTR_DATA;
 #define NUM_SAMPLES_TO_READ 50 //50 / 100 / 200/ 400/ 800
 
 
@@ -54,10 +54,6 @@ void pic24_init() {
     CLKDIVbits.RCDIV = 0;  //clock to 16
     AD1PCFG = 0xffff; //all pins digital
     TRISAbits.TRISA0 = 0; 
-//    I2C2BRG = 0x9D;
-//    I2C2CONbits.I2CEN = 1;
-//    _I2CSIDL = 0;
-//    IFS3bits.MI2C2IF=0;
 }
 
 
@@ -81,7 +77,6 @@ void I2C_write(uint8_t data) {
 // Function to read data over I2C
 uint32_t I2C_read() {
     I2C2CONbits.RCEN = 1; // Enable receive mode
-    //while (!I2C2STATbits.RBF); // Wait for receive buffer to be full
     while (I2C2CONbits.RCEN == 1);
     return I2C2RCV;        // I2C receive reg
 }
@@ -116,31 +111,63 @@ void max30102_init(void) {
     //I2C2CONbits.SMODE = 0;
 
     IFS3bits.MI2C2IF = 0; // clr Int flag
-    
-//    I2C_write(0b10010010); //FIFO config
-//    I2C_write(0b01000011); //MODE_config
-//    I2C_write(0b00100001); //SPO2 config
 }
 
-//void max30102_read_data () {
-//    I2C_write(MAX30102_ADDRESS_WRITE); //slave id byte is sent
-//    I2C2CONbits.ACKDT = 0;
-//    while (I2C2CONbits.ACKDT = 0);
-//    
-//    I2C_write(FIFO_WR_PTR); //register we wish to read 
-//    I2C2CONbits.ACKDT = 0;
-//    while (I2C2CONbits.ACKDT = 0); 
-//    
-//    I2C_repeated_start();
-//    
-//    I2C_write(MAX30102_ADDRESS_READ); //read the slave ID
-//    I2C2CONbits.ACKDT = 0;
-//    while (I2C2CONbits.ACKDT = 0); 
-//    
-//    FIFO_WR_PTR = I2C_read(); //not sure if it is right.
-//    
-//    
-////}
+void max30102_read_data () {
+    I2C_start(); 
+    I2C_write(MAX30102_ADDRESS_WRITE); //slave id byte is sent
+
+    
+    I2C_write(FIFO_WR_PTR); //register we wish to read 
+    I2C_repeated_start();
+    
+    I2C_write(MAX30102_ADDRESS_READ); //read the slave ID
+
+    
+    FIFO_WR_PTR_DATA = I2C_read(); //not sure if it is right.
+    
+    I2C2CONbits.ACKDT = 1;
+        
+    I2C2CONbits.ACKEN = 1;   
+    while (I2C2CONbits.ACKEN == 1);
+    LATAbits.LATA0 = 1;
+    I2C_stop();
+    
+    //central processor evaluates the number of samples to be read
+}
+
+void max30102_write_config_SP02() {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(0x0A); 
+    //LATAbits.LATA0 = 1;
+    I2C_write(0b00100001);       
+
+    I2C_stop();
+}
+
+void max30102_write_config_FIFO() {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(0x08); 
+
+    I2C_write(0b10110010);       
+
+    I2C_stop();
+}
+
+ void max30102_write_config_MODE() {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(0x09); 
+
+    I2C_write(0b01000011);       
+
+    I2C_stop();
+}
 
 // Read data from MAX30102 sensor
 //void read_SP02_measurements() {
@@ -196,7 +223,6 @@ void max30102_init(void) {
 //     
 //}
 
-//verified to work!
 void max30102_read_partID() {
         I2C_start();  
         I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
@@ -228,9 +254,11 @@ void max30102_read_partID() {
 int main(void) {
     pic24_init();
     max30102_init();
-    
+    max30102_write_config_MODE();
+    max30102_write_config_FIFO();
+    max30102_write_config_SP02();
 
-        
+    
     while(1){
         //Testing for PartID
 // Reading the part ID
