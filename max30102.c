@@ -210,6 +210,21 @@ void max30102_write_config_LED_CONTROL() {
 
     I2C_stop();
 }
+void max30102_temp_interruptE2(void){
+    I2C_start(); 
+    I2C_write(MAX30102_ADDRESS_WRITE);
+    I2C_write(INTE2); // setup temperature interrupt enable 2
+    I2C_write(0x02); // write the data
+    I2C_stop();
+}
+
+void max30102_temp_init(void){
+    I2C_start(); 
+    I2C_write(MAX30102_ADDRESS_WRITE);
+    I2C_write(TEMP_CONFIG); // write to the temperature address
+    I2C_write(0x01); // write the data to set the temperature enable bit to on
+    I2C_stop();
+}
 
 // Read data from MAX30102 sensor
 //void read_SP02_measurements() {
@@ -319,3 +334,6 @@ int main(void) {
     return 0;
     
 }
+
+
+
