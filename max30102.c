@@ -31,8 +31,6 @@
 #define MAX30102_ADDRESS_WRITE 0xAE //writing
 #define MAX30102_ADDRESS_READ  0xAF //reading
 
-#define SLAVE_ID_write 0b10101110 //same\ as above (for consistency)
-#define SLAVE_ID_read  0b10101111
 
 // Define register addresses
 #define FIFO_WR_PTR    0x04
@@ -148,6 +146,7 @@ void max30102_write_config_SP02() {
 }
 
 void max30102_write_config_FIFO() {
+    LATAbits.LATA0 = 1;
     I2C_start();  
     I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
 
@@ -165,6 +164,39 @@ void max30102_write_config_FIFO() {
     I2C_write(0x09); 
 
     I2C_write(0b01000011);       
+
+    I2C_stop();
+}
+ 
+ void max30102_write_config_RED_PulseAmplitude() {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(0x0C); 
+
+    I2C_write(0x3F);       
+
+    I2C_stop();
+}
+ 
+void max30102_write_config_IR_PulseAmplitude() {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(0x0D); 
+
+    I2C_write(0x1F);       
+
+    I2C_stop();
+}
+
+void max30102_write_config_LED_CONTROL() {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(0x11); 
+
+    I2C_write(00010010);       
 
     I2C_stop();
 }
@@ -257,6 +289,10 @@ int main(void) {
     max30102_write_config_MODE();
     max30102_write_config_FIFO();
     max30102_write_config_SP02();
+    max30102_write_config_RED_PulseAmplitude();
+    max30102_write_config_IR_PulseAmplitude();
+    max30102_write_config_LED_CONTROL();
+    
 
     
     while(1){
