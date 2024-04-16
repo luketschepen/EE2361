@@ -39,11 +39,58 @@
 #define FIFO_DATA      0x07
 #define FIFO_DEPTH     32
 #define PART_ID        0xFF
-#define INTE2          0x03
-#define TEMP_CONFIG    0x21
 uint32_t partID;
-uint32_t FIFO_WR_PTR_DATA;
+//uint32_t FIFO_WR_PTR_DATA;
 #define NUM_SAMPLES_TO_READ 50 //50 / 100 / 200/ 400/ 800
+//#define NUM_AVAILABLE_SAMPLES
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+static const uint8_t MAX30105_MODE_MASK = 0xF8;
+static const uint8_t MAX30105_MODE_REDONLY = 0x02;
+static const uint8_t MAX30105_MODE_REDIRONLY = 0x03;
+static const uint8_t MAX30105_MODE_MULTILED = 0x07;
+static const uint8_t MAX30105_MODECONFIG = 0x09;
+
+static const uint8_t MAX30105_PARTICLECONFIG = 	0x0A; 
+
+static const uint8_t MAX30105_PULSEWIDTH_MASK = 0xFC;
+static const uint8_t MAX30105_PULSEWIDTH_69 = 	0x00;
+static const uint8_t MAX30105_PULSEWIDTH_118 = 	0x01;
+static const uint8_t MAX30105_PULSEWIDTH_215 = 	0x02;
+static const uint8_t MAX30105_PULSEWIDTH_411 = 	0x03;
+
+static const uint8_t MAX30105_LED1_PULSEAMP = 	0x0C;
+static const uint8_t MAX30105_LED2_PULSEAMP = 	0x0D;
+
+#define MAX30105_PULSEWIDTH_69    0x02
+#define MAX30105_PULSEWIDTH_118   0x01
+#define MAX30105_PULSEWIDTH_215   0x00
+#define MAX30105_PULSEWIDTH_411   0x03
+
+static const uint8_t MAX30105_SHUTDOWN_MASK = 	0x7F;
+static const uint8_t MAX30105_SHUTDOWN = 		0x80;
+static const uint8_t MAX30105_WAKEUP = 			0x00;
+
+//Multi-LED Mode configuration (pg 22)
+static const uint8_t MAX30105_SLOT1_MASK = 		0xF8;
+static const uint8_t MAX30105_SLOT2_MASK = 		0x8F;
+static const uint8_t MAX30105_SLOT3_MASK = 		0xF8;
+static const uint8_t MAX30105_SLOT4_MASK = 		0x8F;
+
+static const uint8_t SLOT_NONE = 				0x00;
+static const uint8_t SLOT_RED_LED = 			0x01;
+static const uint8_t SLOT_IR_LED = 				0x02;
+static const uint8_t SLOT_GREEN_LED = 			0x03;
+static const uint8_t SLOT_NONE_PILOT = 			0x04;
+static const uint8_t SLOT_RED_PILOT =			0x05;
+static const uint8_t SLOT_IR_PILOT = 			0x06;
+static const uint8_t SLOT_GREEN_PILOT = 		0x07;
+
+static const uint8_t MAX30105_MULTILEDCONFIG1 = 0x11;
+static const uint8_t MAX30105_MULTILEDCONFIG2 = 0x12;
+
+
 
 
 /*
@@ -72,6 +119,8 @@ void I2C_write(uint8_t data) {
     I2C2TRN = data;        //  I2C transimit reg
     while (I2C2STATbits.TRSTAT); // Wait for transmission to complete
 //    while (I2C2STATbits.ACKSTAT); // Wait for ACK/NACK from slave
+    //while(IFS3bits.MI2C2IF==0);
+
 }
 
 // Function to read data over I2C
@@ -100,6 +149,7 @@ void I2C_NACK() {
 }
 
 
+
 // Initialize MAX30102 sensor
 void max30102_init(void) {
     I2C2CONbits.I2CEN = 0;
@@ -113,28 +163,9 @@ void max30102_init(void) {
     IFS3bits.MI2C2IF = 0; // clr Int flag
 }
 
-void max30102_read_data () {
-    I2C_start(); 
-    I2C_write(MAX30102_ADDRESS_WRITE); //slave id byte is sent
 
-    
-    I2C_write(FIFO_WR_PTR); //register we wish to read 
-    I2C_repeated_start();
-    
-    I2C_write(MAX30102_ADDRESS_READ); //read the slave ID
 
-    
-    FIFO_WR_PTR_DATA = I2C_read(); //not sure if it is right.
-    
-    I2C2CONbits.ACKDT = 1;
-        
-    I2C2CONbits.ACKEN = 1;   
-    while (I2C2CONbits.ACKEN == 1);
-    LATAbits.LATA0 = 1;
-    I2C_stop();
-    
-    //central processor evaluates the number of samples to be read
-}
+
 
 void max30102_write_config_SP02() {
     I2C_start();  
@@ -142,7 +173,7 @@ void max30102_write_config_SP02() {
 
     I2C_write(0x0A); 
     //LATAbits.LATA0 = 1;
-    I2C_write(0b00100111);   //00100111    00100001
+    I2C_write(0x27);   //00100111    00100001
 
     I2C_stop();
 }
@@ -175,7 +206,7 @@ void max30102_write_config_FIFO() {
 
     I2C_write(0x09); 
 
-    I2C_write(0b01000000);       
+    I2C_write(0x40);       
 
     I2C_stop();
 }
@@ -208,81 +239,68 @@ void max30102_write_config_LED_CONTROL() {
 
     I2C_write(0x11); 
 
-    I2C_write(0b00010010);       
+    I2C_write(0x1F);       
 
     I2C_stop();
 }
-void max30102_temp_interruptE2(void){
-    I2C_start(); 
+
+void read_data_from_FIFO() {
+    uint8_t FIFO_WR_PTR_DATA = 0;
+    uint8_t NUM_AVAILABLE_SAMPLES;
+    //uint8_t NUM_SAMPLES_TO_READ;
+    uint32_t LED1_sample, LED2_sample;
+
+    // First transaction: Get the FIFO_WR_PTR
+    I2C_start();
+    I2C_write(MAX30102_ADDRESS_WRITE); 
+    I2C_write(FIFO_WR_PTR); 
+    I2C_repeated_start();
+    I2C_write(MAX30102_ADDRESS_READ); 
+    FIFO_WR_PTR_DATA = I2C_read(); 
+    I2C_stop();
+
+    // Evaluate the number of samples to be read from the FIFO
+    //FIFO_RD_PTR_DATA = I2C_read(); // Read FIFO_RD_PTR from the device
+    NUM_AVAILABLE_SAMPLES = (FIFO_WR_PTR_DATA - FIFO_RD_PTR + 1) % 256; // Assuming 8-bit pointers
+    //NUM_SAMPLES_TO_READ = 50; // Define the value based on your requirement
+
+    // Second transaction: Read NUM_SAMPLES_TO_READ samples from the FIFO
+    I2C_start();
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+    I2C_write(FIFO_DATA); // Send address of FIFO_DATA
+    I2C_repeated_start();
+    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
+
+    for (int i = 0; i < NUM_SAMPLES_TO_READ; i++) {
+        // Read LED1 sample
+        LED1_sample  = (uint32_t)I2C_read() << 16;
+        LED1_sample |= (uint32_t)I2C_read() << 8;
+        LED1_sample |= (uint32_t)I2C_read();
+
+        // Read LED2 sample
+        LED2_sample  = (uint32_t)I2C_read() << 16;
+        LED2_sample |= (uint32_t)I2C_read() << 8;
+        LED2_sample |= (uint32_t)I2C_read();
+        
+        // Process LED1(RED) and LED2(IR) samples
+        //process_SPO2_data(LED1_sample, LED2_sample); // Replace with your processing function
+    }
+    
+    I2C_stop();
+
+    // Update FIFO_RD_PTR
+    I2C_start();
     I2C_write(MAX30102_ADDRESS_WRITE);
-    I2C_write(INTE2); // setup temperature interrupt enable 2
-    I2C_write(0x02); // write the data
+    I2C_write(FIFO_RD_PTR);
+    I2C_write(FIFO_RD_PTR);
     I2C_stop();
 }
-
-void max30102_temp_init(void){
-    I2C_start(); 
-    I2C_write(MAX30102_ADDRESS_WRITE);
-    I2C_write(TEMP_CONFIG); // write to the temperature address
-    I2C_write(0x01); // write the data to set the temperature enable bit to on
-    I2C_stop();
-}
-
-// Read data from MAX30102 sensor
-//void read_SP02_measurements() {
-//    uint8_t FIFO_WR_PTR, FIFO_RD_PTR;
-//    uint8_t NUM_AVAILABLE_SAMPLES, NUM_SAMPLES_TO_READ;
-//    uint32_t LED1_sample, LED2_sample;
-//
-//    // First transaction: Get the FIFO_WR_PTR
-//    I2C_start(); 
-//    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-//    I2C_write(FIFO_WR_PTR); // Send address of FIFO_WR_PTR
-//    I2C_repeated_start(); // Repeated start condition
-//    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
-//    FIFO_WR_PTR = I2C_read(); // Read FIFO_WR_PTR
-//    I2C_stop(); 
-//
-//    // Evaluate the number of samples to be read from the FIFO
-//    NUM_AVAILABLE_SAMPLES = (FIFO_WR_PTR - FIFO_RD_PTR + FIFO_DEPTH) % FIFO_DEPTH;
-//    NUM_SAMPLES_TO_READ = MIN(NUM_AVAILABLE_SAMPLES, MAX_SAMPLES_TO_READ);
-//
-//    // Second transaction: Read NUM_SAMPLES_TO_READ samples from the FIFO
-//    I2C_start(); 
-//    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-//    I2C_write(FIFO_RD_PTR); // Send address of FIFO_DATA
-//    I2C_repeated_start(); 
-//    I2C_write(MAX30102_ADDRESS_READ); // Send device address + read mode
-//    for (int i = 0; i < NUM_SAMPLES_TO_READ; i++) {
-//        // Read LED1 sample
-//        LED1_sample = I2C_read() << 16;
-//        LED1_sample |= I2C_read() << 8;
-//        LED1_sample |= I2C_read();
-//        
-//        // Read LED2 sample
-//        LED2_sample = I2C_read() << 16;
-//        LED2_sample |= I2C_read() << 8;
-//        LED2_sample |= I2C_read();
-//        
-//        // Process LED1 and LED2 samples
-//        process_SP02_data(LED1_sample, LED2_sample); //need to be done next
-//    }
-//    I2C_stop(); // Stop condition
-//
-//    // Update FIFO_RD_PTR
-//    FIFO_RD_PTR = (FIFO_RD_PTR + NUM_SAMPLES_TO_READ) % FIFO_DEPTH;
-//    I2C_start(); // Start condition
-//    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-//    I2C_write(FIFO_RD_PTR); // Send address of FIFO_RD_PTR
-//    I2C_write(FIFO_RD_PTR); // Write FIFO_RD_PTR
-//    I2C_stop(); // Stop condition
-//}
 
 //void process_SP02_data(LED1_sample, LED2_sample){
-//     
+//    int i;
 //}
 
-void max30102_read_partID() {
+uint32_t max30102_read_partID() {
         I2C_start();  
         I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
         
@@ -303,39 +321,145 @@ void max30102_read_partID() {
 
         
         while (I2C2CONbits.ACKEN == 1);
-        LATAbits.LATA0 = 1;
+        //LATAbits.LATA0 = 1;
         I2C_stop();
+        
+        return partID;
 
 }
+
+void bitMask(uint8_t reg, uint8_t mask, uint8_t thing);
+uint8_t readRegister8(uint8_t reg);
+uint8_t I2C_write_with_params(uint8_t reg, uint8_t val);
+void setLEDMode(uint8_t mode);
+
+uint8_t readRegister8(uint8_t reg)
+{
+    I2C_start();
+
+    // Send device address with write bit
+    I2C_write(MAX30102_ADDRESS_WRITE);
+
+    // Send register address
+    I2C_write(reg);
+
+    // Restart I2C communication
+    I2C_repeated_start();
+
+    // Send device address with read bit
+    I2C_write(MAX30102_ADDRESS_READ);
+
+    // Read received data
+    uint8_t data = I2C_read();
+
+    // Stop I2C communication
+    I2C_stop();
+
+    return data;
+}
+
+
+uint8_t I2C_write_with_params(uint8_t reg, uint8_t val) {
+    I2C_start();  
+    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
+
+    I2C_write(reg); 
+
+    I2C_write(val);       
+
+    I2C_stop();
+}
+
+void bitMask(uint8_t reg, uint8_t mask, uint8_t thing)
+{
+    // Grab current register context
+    uint8_t originalContents = readRegister8(reg);
+
+    // Zero-out the portions of the register we're interested in
+    originalContents &= ~mask; // Invert mask to clear bits
+                                // Set the desired bits
+    originalContents |= (thing & mask);
+
+    // Change contents
+    I2C_write_with_params(reg, originalContents);
+}
+
+void setLEDMode(uint8_t mode) {
+    // Set which LEDs are used for sampling -- Red only, RED+IR only, or custom.
+    // See datasheet, page 19
+    bitMask(MAX30105_MODECONFIG, MAX30105_MODE_MASK, mode);
+}
+
+void setPulseWidth(uint8_t pulseWidth) {
+    bitMask(MAX30105_PARTICLECONFIG,MAX30105_PULSEWIDTH_MASK, pulseWidth);
+}
+
+void setPulseAmplitudeRed(uint8_t amplitude) {
+  I2C_write_with_params(MAX30105_LED1_PULSEAMP, amplitude);
+}
+
+void setPulseAmplitudeIR(uint8_t amplitude) {
+  I2C_write_with_params(MAX30105_LED2_PULSEAMP, amplitude);
+}
+
+void max30102_wakeUp(void) {
+  bitMask(MAX30105_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_WAKEUP);
+}
+
+void max30102_enableSlot(uint8_t device) {
+  bitMask(MAX30105_MULTILEDCONFIG1, MAX30105_SLOT2_MASK, device << 4);
+     
+}
+
+
 
 
 
 int main(void) {
     pic24_init();
     max30102_init();
-    max30102_write_config_RESET_MODE();
-    for (int i = 0; i< 100; i++){
-        i++ ;
+    if (max30102_read_partID() != PART_ID){
+        return;
     }
-    max30102_write_config_MODE();
-    max30102_write_config_FIFO();
-    max30102_write_config_SP02();
-    max30102_write_config_RED_PulseAmplitude();
-    max30102_write_config_IR_PulseAmplitude();
-    max30102_write_config_LED_CONTROL();
-    
+//    max30102_write_config_RESET_MODE();
+//    max30102_wakeUp();
+//    max30102_write_config_MODE();
+//    max30102_write_config_FIFO();
+//    max30102_write_config_SP02();
+//    max30102_write_config_RED_PulseAmplitude();
+//    max30102_write_config_IR_PulseAmplitude();
+//    max30102_write_config_LED_CONTROL();
+//    setLEDMode(MAX30105_MODE_REDIRONLY);
+//    setPulseWidth(MAX30105_PULSEWIDTH_215);
+//    setPulseAmplitudeRed(0xFF);
+//    setPulseAmplitudeIR(0xFF);
+    I2C_write_with_params(MAX30105_MODECONFIG, 0x40);  // Send reset command
 
+    // Poll for reset bit to clear
+    while (1) {
+        uint8_t reset = readRegister8(MAX30105_MODECONFIG);
+        if (!(reset & 0x40)) break;  // Exit loop when reset bit is cleared
+    }
+//    max30102_enableSlot(SLOT_RED_LED);
+    I2C_write_with_params(MAX30105_MODECONFIG, 0x03);  // SpO2 mode enables Red and IR LEDs
+
+    // Set LED pulse amplitudes
+    I2C_write_with_params(MAX30105_LED1_PULSEAMP, 0xFF);  // Set Red LED pulse amplitude
+    I2C_write_with_params(MAX30105_LED2_PULSEAMP, 0xFF); 
+    
     
     while(1){
         //Testing for PartID
 // Reading the part ID
-         asm("nop");
+        uint8_t modeSet = readRegister8(MAX30105_MODECONFIG);
+        uint8_t redAmpSet = readRegister8(MAX30105_LED1_PULSEAMP);
+        uint8_t irAmpSet = readRegister8(MAX30105_LED2_PULSEAMP);
 
+// Use debugging or serial prints to verify these values
+        print("Mode Set: %02X, Red Amp Set: %02X, IR Amp Set: %02X\n", modeSet, redAmpSet, irAmpSet);
+         
     }
     
     return 0;
     
 }
-
-
-
