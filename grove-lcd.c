@@ -131,6 +131,7 @@ void lcd_cmd(char Package) {
 
 void lcd_clr(){
     lcd_cmd(DISPLAY_CLR);
+    delay_ms(2); //This command takes a long time
 }
 
 void lcd_printChar(char myChar){ 
@@ -164,6 +165,7 @@ void lcd_printChar(char myChar){
 
 void lcd_cursorReturn(){
     lcd_cmd(CURSOR_RETURN);
+    delay_ms(2); // This command takes a long time
 }
 
 void lcd_printStr(const char s[]){
@@ -204,7 +206,7 @@ void printHeartRate(){
     //get heart rate from sensor file
     //convert heart rate to a string
      char heartRateStr[20];
-     sprintf(heartRateStr, "%6.4fV", getHeartRate());
+     sprintf(heartRateStr, "%2.2fV", getHeartRate());
      lcd_clr();
      lcd_cursorReturn(0,0);
      lcd_printStr(heartRateStr);
@@ -216,7 +218,7 @@ void printOxygen(){
     //get oxygen from sensor file
     //convert oxygen to a string
      char oxygenStr[20];
-     sprintf(oxygenStr, "%6.4fV", getOxygen());
+     sprintf(oxygenStr, "%2.2fV", getOxygen());
      lcd_clr();
      lcd_cursorReturn(0,0);
      lcd_printStr(oxygenStr);
