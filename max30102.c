@@ -39,7 +39,10 @@
 #define FIFO_DATA      0x07
 #define FIFO_DEPTH     32
 #define PART_ID        0xFF
+#define INTE2          0x03
+#define TEMP_CONFIG    0x21
 uint32_t partID;
+
 //uint32_t FIFO_WR_PTR_DATA;
 #define NUM_SAMPLES_TO_READ 50 //50 / 100 / 200/ 400/ 800
 //#define NUM_AVAILABLE_SAMPLES
@@ -244,6 +247,21 @@ void max30102_write_config_LED_CONTROL() {
     I2C_stop();
 }
 
+void max30102_temp_interruptE2(void){
+    I2C_start(); 
+    I2C_write(MAX30102_ADDRESS_WRITE);
+    I2C_write(INTE2); // setup temperature interrupt enable 2
+    I2C_write(0x02); // write the data
+    I2C_stop();
+}
+
+void max30102_temp_init(void){
+    I2C_start(); 
+    I2C_write(MAX30102_ADDRESS_WRITE);
+    I2C_write(TEMP_CONFIG); // write to the temperature address
+    I2C_write(0x01); // write the data to set the temperature enable bit to on
+    I2C_stop();
+}
 void read_data_from_FIFO() {
     uint8_t FIFO_WR_PTR_DATA = 0;
     uint8_t NUM_AVAILABLE_SAMPLES;
