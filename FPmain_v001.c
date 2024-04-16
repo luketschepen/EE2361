@@ -11,6 +11,7 @@
 
 #include "xc.h"
 #include "grove-lcd.h"
+#include <string.h>
 // CW1: FLASH CONFIGURATION WORD 1 (see PIC24 Family Reference Manual 24.1)
 #pragma config ICS = PGx1          // Comm Channel Select (Emulator EMUC1/EMUD1 pins are shared with PGC1/PGD1)
 #pragma config FWDTEN = OFF        // Watchdog Timer Enable (Watchdog Timer is disabled)
@@ -34,10 +35,18 @@ void pic24_init() {
 
 int main(void) {
     pic24_init(); //set clock to 16MHz and all pins digital
-    lcd_init(); //initialize the LCD screen for future use
- 
+    init_I2C();
+    grovelcd_init(); //initialize the LCD screen for future use
+    
+    lcd_clr();
+    
+    //setBacklightColor(255, 0, 0);
+    
     while(1){
-        lcd_printChar('a');
+        //lcd_printChar('H'); 
+        lcd_printStr("Hello World");
+        lcd_cursorReturn();
+        delay_ms(1);
     }
     return 0;
 }

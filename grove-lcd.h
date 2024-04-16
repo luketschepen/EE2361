@@ -16,9 +16,15 @@ extern "C" {
 #endif
 
 void delay_ms(unsigned int ms);
-void lcd_init(void);
+void grovelcd_init(void);
 void lcd_cmd(char Package);
 void lcd_printChar(char myChar);
+void lcd_clr();
+void init_I2C(void);
+void lcd_printStr(const char s[]);
+void lcd_cursorReturn();
+void setBacklightColor(int r, int g, int b);
+void printColor(char color);
 
 #ifdef	__cplusplus
 }
