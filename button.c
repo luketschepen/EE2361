@@ -1,14 +1,20 @@
 /*
  * File:   button.c
- * Author: lucas
+ * Author: luke
  *
  * Created on April 16, 2024, 12:08 PM
  */
 
 
 #include "xc.h"
+#include "button.h"
 
-void initButton(){ //button used in lab 4
+volatile unsigned long int prev_t;
+volatile unsigned long int cur_t;
+volatile int prevState = 0;
+volatile int overflow = 0;
+
+void initButton(){ //button used in lab 4, might need/be easier to have all of this in main
     TRISBbits.TRISB8 = 1;
     CNPU2bits.CN22PUE = 1;
     
@@ -36,6 +42,11 @@ void initButton(){ //button used in lab 4
        
 }
 
+void __attribute__((interrupt, auto_pav)) _T2Interrupt(void){
+    _T2IF = 0;
+    overflow++;
+}
+
 void __attribute__((__interrupt__, __auto_psv__)) _IC1Interrupt(void){
    _IC1IF = 0; 
    
@@ -49,11 +60,6 @@ void __attribute__((__interrupt__, __auto_psv__)) _IC1Interrupt(void){
        }
        else{
            prevState = 1;
-           if (numElemsInBuff < BUFFER_SIZE){
-               buffer[writeIdx++] = cur_t;
-               writeIdx %= BUFFER_SIZE;
-               ++numElemsInBuff;
-           }
        }
-    }
+   }
 }
