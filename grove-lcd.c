@@ -201,63 +201,70 @@ void lcd_printStr(const char s[]){
     IFS1bits.MI2C1IF = 0;
     
 }
+//
+//void printHeartRate(){ //NOT NEEDED UNTIL SENSOR CAN READ
+//    //get heart rate from sensor file
+//    //convert heart rate to a string
+//     char heartRateStr[20];
+//     sprintf(heartRateStr, "%2.2fV", getHeartRate());
+//     lcd_clr();
+//     lcd_cursorReturn(0,0);
+//     lcd_printStr(heartRateStr);
+//    //lcd_printStr(heart rate);
+//    //printHeart();
+//}
+//
+//void printOxygen(){
+//    //get oxygen from sensor file
+//    //convert oxygen to a string
+//     char oxygenStr[20];
+//     sprintf(oxygenStr, "%2.2fV", getOxygen());
+//     lcd_clr();
+//     lcd_cursorReturn(0,0);
+//     lcd_printStr(oxygenStr);
+//    //lcd_printStr(oxygen);
+//    //print O2 after??
+//}
 
-void printHeartRate(){
-    //get heart rate from sensor file
-    //convert heart rate to a string
-     char heartRateStr[20];
-     sprintf(heartRateStr, "%2.2fV", getHeartRate());
-     lcd_clr();
-     lcd_cursorReturn(0,0);
-     lcd_printStr(heartRateStr);
-    //lcd_printStr(heart rate);
-    //printHeart();
-}
-
-void printOxygen(){
-    //get oxygen from sensor file
-    //convert oxygen to a string
-     char oxygenStr[20];
-     sprintf(oxygenStr, "%2.2fV", getOxygen());
-     lcd_clr();
-     lcd_cursorReturn(0,0);
-     lcd_printStr(oxygenStr);
-    //lcd_printStr(oxygen);
-    //print O2 after??
-}
-
-void printHeart(){
-    //lcd_setCursor()
-    //lcd_printStr("<3");
-}
-
-void printO2() {
-    //lcd_setCursor()
-    //lcd_printStr("O2");
-}
+//void printHeart(){ //Heart Rate printing sequence
+//    lcd_clr();
+//    lcd_cursorReturn();
+//    lcd_printStr("<3 Heart Rate <3");
+//    setCursor(6,1);
+//    printHeartRate(); //print heart rate from sensor
+//}
+//
+//void printO2() {  //oxygen printing sequence
+//    lcd_clr();
+//    lcd_cursorReturn();
+//    lcd_printStr("Oxygen Percent");
+//    setCursor(0,1);
+//    lcd_printStr("SPO2:");
+//    printOxygen(); //print oxygen from sensor
+//    lcd_printChar('%');
+//}
 
 void setCursor(int x, int y){
     //set Cursor to desired x(column) y(row)
     lcd_cmd(0x0 | RS_BIT | (CONTROL_BIT * y + x));
 }
 
-void switchScreen(){
-    //clear display
-    //heart rate = getCurrent;
-    //if heart rate = 1 
-        //printOxygen())
-        //heart rate = 0
-    //else 
-        //printHeartRate())
-}
-
-void redAlert(){
-    //constantly read heart rate or blood oxygen
-    //if either > said amount
-        //RGB Backlight -> red
-    //else 
-        //clear color
-}
-
+//void switchScreen(){
+//    //clear display
+//    //heart rate = getCurrent;
+//    //if heart rate = 1 
+//        //printOxygen())
+//        //heart rate = 0
+//    //else 
+//        //printHeartRate())
+//}
+//
+//void redAlert(){
+//    //constantly read heart rate or blood oxygen
+//    //if either > said amount
+//        //RGB Backlight -> red
+//    //else 
+//        //clear color
+//}
 
 

@@ -1,20 +1,23 @@
 /* 
- * File:   buttonHeader.h
- * Author: Luke Tschpeen
+ * File:   button.h
+ * Author: Luke
  *
  *
  */
 
-#ifndef BUTTONHEADER_H
-#define	BUTTONHEADER_H
+#ifndef BUTTON_H
+#define	BUTTON_H
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
     
-#define BUFFER_SIZE 3
 
 void initButton();
+int getButtonState();
+void __attribute__((interrupt, auto_pav)) _T2Interrupt(void);
+void __attribute__((__interrupt__, __auto_psv__)) _IC1Interrupt(void);
+
     
 
 #ifdef	__cplusplus

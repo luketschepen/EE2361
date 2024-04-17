@@ -11,7 +11,7 @@
 
 volatile unsigned long int prev_t;
 volatile unsigned long int cur_t;
-volatile int prevState = 0;
+int displayHeartRate = 0;
 volatile int overflow = 0;
 
 void initButton(){ //button used in lab 4, might need/be easier to have all of this in main
@@ -55,11 +55,15 @@ void __attribute__((__interrupt__, __auto_psv__)) _IC1Interrupt(void){
    
    if ((cur_t - prev_t) > 125){
        prev_t = cur_t;
-       if (prevState){
-           prevState = 0;
+       if (displayHeartRate == 1){
+           displayHeartRate = 0;
        }
        else{
-           prevState = 1;
+           displayHeartRate = 1;
        }
    }
+}
+
+int getButtonState(){
+    return displayHeartRate;
 }

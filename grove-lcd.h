@@ -23,8 +23,13 @@ void lcd_clr();
 void init_I2C(void);
 void lcd_printStr(const char s[]);
 void lcd_cursorReturn();
+void setCursor(int x, int y);
 void setBacklightColor(int r, int g, int b);
 void printColor(char color);
+void printHeartRate();
+void printOxygen();
+void printHeart();
+void printO2();
 
 #ifdef	__cplusplus
 }
