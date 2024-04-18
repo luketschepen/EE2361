@@ -10,6 +10,7 @@
 #include "grove-lcd.h"
 #include <string.h>
 #include <stdio.h>
+#include "button.h"
 
 #define LCD_SLAVE_ADDR 0x3E //0b00111110
 #define RGB_SLAVE_ADDR 0x62 //0b01100010
@@ -29,39 +30,6 @@ void delay_ms(unsigned int ms){
         asm("repeat #15998");
         asm("nop");
     }
-}
-
-void setBacklightColor(int r, int g, int b){
-    lcd_cmd(0x4D);
-    printColor(r);
-    printColor(g);
-    printColor(b);
-}
-
-void printColor(char color){
-        //Send START
-    IFS1bits.MI2C1IF = 0; 
-    I2C1CONbits.SEN = 1;	//Initiate Start condition
-    while(I2C1CONbits.SEN == 1); //Wait for SEN == 0  // SEN will clear when Start Bit is complete
-    IFS1bits.MI2C1IF = 0; 
-    
-    //Send Address and Write Command
-    I2C1TRN = RGB_SLAVE_ADDR << 1; // 8-bits consisting of the slave address and the R/nW bit 0x3E for the grove LCD
-    while(IFS1bits.MI2C1IF == 0); //Wait for IFS3bits.MI2C2IF == 1 
-    IFS1bits.MI2C1IF = 0;
-    
-    I2C1TRN = 0b01000000; // 8-bits consisting of control byte 
-    while(IFS1bits.MI2C1IF == 0);
-    IFS1bits.MI2C1IF = 0;
-    
-    //Send Package
-    I2C1TRN = color; // 8-bits consisting of the data byte
-    while(IFS1bits.MI2C1IF == 0);
-    IFS1bits.MI2C1IF = 0; 
-    
-    //Send STOP
-    I2C1CONbits.PEN = 1;
-    while(I2C1CONbits.PEN == 1); //Wait for PEN==0 // PEN will clear when Stop bit is complete
 }
 
 void init_I2C(void){
@@ -131,7 +99,6 @@ void lcd_cmd(char Package) {
 
 void lcd_clr(){
     lcd_cmd(DISPLAY_CLR);
-    delay_ms(2); //This command takes a long time
 }
 
 void lcd_printChar(char myChar){ 
@@ -165,7 +132,7 @@ void lcd_printChar(char myChar){
 
 void lcd_cursorReturn(){
     lcd_cmd(CURSOR_RETURN);
-    delay_ms(2); // This command takes a long time
+    delay_ms(2);
 }
 
 void lcd_printStr(const char s[]){
@@ -201,70 +168,71 @@ void lcd_printStr(const char s[]){
     IFS1bits.MI2C1IF = 0;
     
 }
-//
-//void printHeartRate(){ //NOT NEEDED UNTIL SENSOR CAN READ
-//    //get heart rate from sensor file
-//    //convert heart rate to a string
+
+void printHeartRate(){
+    //get heart rate from sensor file
+    //convert heart rate to a string
 //     char heartRateStr[20];
 //     sprintf(heartRateStr, "%2.2fV", getHeartRate());
 //     lcd_clr();
 //     lcd_cursorReturn(0,0);
 //     lcd_printStr(heartRateStr);
-//    //lcd_printStr(heart rate);
-//    //printHeart();
-//}
-//
-//void printOxygen(){
-//    //get oxygen from sensor file
-//    //convert oxygen to a string
+    //lcd_printStr(heart rate);
+    //printHeart();
+}
+
+void printOxygen(){
+    //get oxygen from sensor file
+    //convert oxygen to a string
 //     char oxygenStr[20];
 //     sprintf(oxygenStr, "%2.2fV", getOxygen());
 //     lcd_clr();
 //     lcd_cursorReturn(0,0);
 //     lcd_printStr(oxygenStr);
-//    //lcd_printStr(oxygen);
-//    //print O2 after??
-//}
+    //lcd_printStr(oxygen);
+    //print O2 after??
+}
 
-//void printHeart(){ //Heart Rate printing sequence
-//    lcd_clr();
-//    lcd_cursorReturn();
+void printHeart(){
+    //lcd_setCursor()
+    //lcd_cursorReturn();
 //    lcd_printStr("<3 Heart Rate <3");
 //    setCursor(6,1);
 //    printHeartRate(); //print heart rate from sensor
-//}
-//
-//void printO2() {  //oxygen printing sequence
-//    lcd_clr();
+}
+
+void printO2() {
+    //    lcd_clr();
 //    lcd_cursorReturn();
 //    lcd_printStr("Oxygen Percent");
 //    setCursor(0,1);
 //    lcd_printStr("SPO2:");
 //    printOxygen(); //print oxygen from sensor
 //    lcd_printChar('%');
-//}
+}
 
 void setCursor(int x, int y){
     //set Cursor to desired x(column) y(row)
     lcd_cmd(0x0 | RS_BIT | (CONTROL_BIT * y + x));
 }
 
-//void switchScreen(){
-//    //clear display
-//    //heart rate = getCurrent;
-//    //if heart rate = 1 
-//        //printOxygen())
-//        //heart rate = 0
-//    //else 
-//        //printHeartRate())
-//}
-//
-//void redAlert(){
-//    //constantly read heart rate or blood oxygen
-//    //if either > said amount
-//        //RGB Backlight -> red
-//    //else 
-//        //clear color
-//}
+void switchScreen(){ //in the button file
+    //clear display
+    //heart rate = getCurrent;
+    //if heart rate = 1 
+        //printOxygen())
+        //heart rate = 0
+    //else 
+        //printHeartRate())
+}
+
+void redAlert(){ //Extra if time...
+    //constantly read heart rate or blood oxygen
+    //if either > said amount
+        //RGB Backlight -> red
+    //else 
+        //clear color
+}
+
 
 

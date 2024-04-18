@@ -11,15 +11,17 @@
 
 volatile unsigned long int prev_t;
 volatile unsigned long int cur_t;
-int displayHeartRate = 0;
-volatile int overflow = 0;
+volatile int displayHeartRate = 0;
+volatile unsigned long int overflow = 0;
+
+volatile int prevState = 0;
 
 void initButton(){ //button used in lab 4, might need/be easier to have all of this in main
-    TRISBbits.TRISB8 = 1;
-    CNPU2bits.CN22PUE = 1;
+    TRISBbits.TRISB7 = 1; //6
+    CNPU2bits.CN23PUE = 1; //24
     
     __builtin_write_OSCCONL(OSCCON & 0xbf); //unlock PPS
-    RPINR7bits.IC1R = 8; // configure RB8 with INput Capture 1
+    RPINR7bits.IC1R = 7;//6 // configure RB8 with INput Capture 1
     __builtin_write_OSCCONL(OSCCON | 0x40); //lock PPS
     
     T2CON = 0;
@@ -36,7 +38,7 @@ void initButton(){ //button used in lab 4, might need/be easier to have all of t
     
     IC1CON = 0; //clear register
     IC1CONbits.ICTMR = 1; //use timer 2
-    IC1CONbits.ICM = 0b001; // capture mode every edge
+    IC1CONbits.ICM = 1; // capture mode every edge
     _IC1IF = 0; // clear IC1 interrupt flag
     _IC1IE = 1; // enable IC1 interrupts
        
@@ -50,20 +52,29 @@ void __attribute__((interrupt, auto_pav)) _T2Interrupt(void){
 void __attribute__((__interrupt__, __auto_psv__)) _IC1Interrupt(void){
    _IC1IF = 0; 
    
-   
    unsigned long int cur_t = overflow * (uint32_t)(PR2 + 1) + TMR2;
    
-   if ((cur_t - prev_t) > 125){
+   if ((cur_t - prev_t) > 130){
        prev_t = cur_t;
-       if (displayHeartRate == 1){
-           displayHeartRate = 0;
+       
+       if(prevState){//prev state = press, we have a release
+           
+           prevState = 0;
+           
+       }else {//prev state = release, we have a press
+           
+           prevState = 1;
+            if (displayHeartRate == 1){
+                displayHeartRate = 0;
+            }else{
+                displayHeartRate = 1;
+            }
        }
-       else{
-           displayHeartRate = 1;
-       }
+      
    }
 }
 
 int getButtonState(){
     return displayHeartRate;
 }
+
