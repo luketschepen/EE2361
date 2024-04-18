@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 
+
 // CW1: FLASH CONFIGURATION WORD 1 (see PIC24 Family Reference Manual 24.1)
 #pragma config ICS = PGx1          // Comm Channel Select (Emulator EMUC1/EMUD1 pins are shared with PGC1/PGD1)
 #pragma config FWDTEN = OFF        // Watchdog Timer Enable (Watchdog Timer is disabled)
@@ -41,36 +42,114 @@
 #define PART_ID        0xFF
 uint32_t partID = 0;
 //uint32_t FIFO_WR_PTR_DATA;
-#define NUM_SAMPLES_TO_READ 50 //50 / 100 / 200/ 400/ 800
+//#define NUM_SAMPLES_TO_READ 50 //50 / 100 / 200/ 400/ 800
 //#define NUM_AVAILABLE_SAMPLES
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+static const uint8_t MAX30105_INTSTAT1 =		0x00;
+static const uint8_t MAX30105_INTSTAT2 =		0x01;
+static const uint8_t MAX30105_INTENABLE1 =		0x02;
+static const uint8_t MAX30105_INTENABLE2 =		0x03;
 
-static const uint8_t MAX30105_MODE_MASK = 0xF8;
-static const uint8_t MAX30105_MODE_REDONLY = 0x02;
-static const uint8_t MAX30105_MODE_REDIRONLY = 0x03;
-static const uint8_t MAX30105_MODE_MULTILED = 0x07;
-static const uint8_t MAX30105_MODECONFIG = 0x09;
+// FIFO Registers
+static const uint8_t MAX30105_FIFOWRITEPTR = 	0x04;
+static const uint8_t MAX30105_FIFOOVERFLOW = 	0x05;
+static const uint8_t MAX30105_FIFOREADPTR = 	0x06;
+static const uint8_t MAX30105_FIFODATA =		0x07;
 
-static const uint8_t MAX30105_PARTICLECONFIG = 	0x0A; 
+// Configuration Registers
+static const uint8_t MAX30105_FIFOCONFIG = 		0x08;
+static const uint8_t MAX30102_MODECONFIG = 		0x09;
+static const uint8_t MAX30105_PARTICLECONFIG = 	0x0A;    // Note, sometimes listed as "SPO2" config in datasheet (pg. 11)
+static const uint8_t MAX30105_LED1_PULSEAMP = 	0x0C;
+static const uint8_t MAX30105_LED2_PULSEAMP = 	0x0D;
+static const uint8_t MAX30105_LED3_PULSEAMP = 	0x0E;
+static const uint8_t MAX30105_LED_PROX_AMP = 	0x10;
+static const uint8_t MAX30105_MULTILEDCONFIG1 = 0x11;
+static const uint8_t MAX30105_MULTILEDCONFIG2 = 0x12;
+
+// Die Temperature Registers
+static const uint8_t MAX30105_DIETEMPINT = 		0x1F;
+static const uint8_t MAX30105_DIETEMPFRAC = 	0x20;
+static const uint8_t MAX30105_DIETEMPCONFIG = 	0x21;
+
+// Proximity Function Registers
+static const uint8_t MAX30105_PROXINTTHRESH = 	0x30;
+
+// Part ID Registers
+static const uint8_t MAX30105_REVISIONID = 		0xFE;
+static const uint8_t MAX30105_PARTID = 			0xFF;    // Should always be 0x15. Identical to MAX30102.
+
+// MAX30105 Commands
+// Interrupt configuration (pg 13, 14)
+//static const uint8_t MAX30105_INT_A_FULL_MASK =		(byte)~0b10000000;
+static const uint8_t MAX30105_INT_A_FULL_ENABLE = 	0x80;
+static const uint8_t MAX30105_INT_A_FULL_DISABLE = 	0x00;
+
+//static const uint8_t MAX30105_INT_DATA_RDY_MASK = (byte)~0b01000000;
+static const uint8_t MAX30105_INT_DATA_RDY_ENABLE =	0x40;
+static const uint8_t MAX30105_INT_DATA_RDY_DISABLE = 0x00;
+
+//static const uint8_t MAX30105_INT_ALC_OVF_MASK = (byte)~0b00100000;
+static const uint8_t MAX30105_INT_ALC_OVF_ENABLE = 	0x20;
+static const uint8_t MAX30105_INT_ALC_OVF_DISABLE = 0x00;
+
+//tatic const uint8_t MAX30105_INT_PROX_INT_MASK = (byte)~0b00010000;
+static const uint8_t MAX30105_INT_PROX_INT_ENABLE = 0x10;
+static const uint8_t MAX30105_INT_PROX_INT_DISABLE = 0x00;
+
+//static const uint8_t MAX30105_INT_DIE_TEMP_RDY_MASK = (byte)~0b00000010;
+static const uint8_t MAX30105_INT_DIE_TEMP_RDY_ENABLE = 0x02;
+static const uint8_t MAX30105_INT_DIE_TEMP_RDY_DISABLE = 0x00;
+
+static const uint8_t MAX30105_SAMPLEAVG_MASK =	~0b11100000;
+static const uint8_t MAX30105_SAMPLEAVG_1 = 	0x00;
+static const uint8_t MAX30105_SAMPLEAVG_2 = 	0x20;
+static const uint8_t MAX30105_SAMPLEAVG_4 = 	0x40;
+static const uint8_t MAX30105_SAMPLEAVG_8 = 	0x60;
+static const uint8_t MAX30105_SAMPLEAVG_16 = 	0x80;
+static const uint8_t MAX30105_SAMPLEAVG_32 = 	0xA0;
+
+static const uint8_t MAX30105_ROLLOVER_MASK = 	0xEF;
+static const uint8_t MAX30105_ROLLOVER_ENABLE = 0x10;
+static const uint8_t MAX30105_ROLLOVER_DISABLE = 0x00;
+
+static const uint8_t MAX30105_A_FULL_MASK = 	0xF0;
+
+// Mode configuration commands (page 19)
+static const uint8_t MAX30105_SHUTDOWN_MASK = 	0x7F;
+static const uint8_t MAX30105_SHUTDOWN = 		0x80;
+static const uint8_t MAX30105_WAKEUP = 			0x00;
+
+static const uint8_t MAX30105_RESET_MASK = 		0xBF;
+static const uint8_t MAX30105_RESET = 			0x40;
+
+static const uint8_t MAX30105_MODE_MASK = 		0xF8;
+static const uint8_t MAX30105_MODE_REDONLY = 	0x02;
+static const uint8_t MAX30105_MODE_REDIRONLY = 	0x03;
+static const uint8_t MAX30105_MODE_MULTILED = 	0x07;
+
+// Particle sensing configuration commands (pgs 19-20)
+static const uint8_t MAX30105_ADCRANGE_MASK = 	0x9F;
+static const uint8_t MAX30105_ADCRANGE_2048 = 	0x00;
+static const uint8_t MAX30105_ADCRANGE_4096 = 	0x20;
+static const uint8_t MAX30105_ADCRANGE_8192 = 	0x40;
+static const uint8_t MAX30105_ADCRANGE_16384 = 	0x60;
+
+static const uint8_t MAX30105_SAMPLERATE_MASK = 0xE3;
+static const uint8_t MAX30105_SAMPLERATE_50 = 	0x00;
+static const uint8_t MAX30105_SAMPLERATE_100 = 	0x04;
+static const uint8_t MAX30105_SAMPLERATE_200 = 	0x08;
+static const uint8_t MAX30105_SAMPLERATE_400 = 	0x0C;
+static const uint8_t MAX30105_SAMPLERATE_800 = 	0x10;
+static const uint8_t MAX30105_SAMPLERATE_1000 = 0x14;
+static const uint8_t MAX30105_SAMPLERATE_1600 = 0x18;
+static const uint8_t MAX30105_SAMPLERATE_3200 = 0x1C;
 
 static const uint8_t MAX30105_PULSEWIDTH_MASK = 0xFC;
 static const uint8_t MAX30105_PULSEWIDTH_69 = 	0x00;
 static const uint8_t MAX30105_PULSEWIDTH_118 = 	0x01;
 static const uint8_t MAX30105_PULSEWIDTH_215 = 	0x02;
 static const uint8_t MAX30105_PULSEWIDTH_411 = 	0x03;
-
-static const uint8_t MAX30105_LED1_PULSEAMP = 	0x0C;
-static const uint8_t MAX30105_LED2_PULSEAMP = 	0x0D;
-
-#define MAX30105_PULSEWIDTH_69    0x02
-#define MAX30105_PULSEWIDTH_118   0x01
-#define MAX30105_PULSEWIDTH_215   0x00
-#define MAX30105_PULSEWIDTH_411   0x03
-
-static const uint8_t MAX30105_SHUTDOWN_MASK = 	0x7F;
-static const uint8_t MAX30105_SHUTDOWN = 		0x80;
-static const uint8_t MAX30105_WAKEUP = 			0x00;
 
 //Multi-LED Mode configuration (pg 22)
 static const uint8_t MAX30105_SLOT1_MASK = 		0xF8;
@@ -87,21 +166,53 @@ static const uint8_t SLOT_RED_PILOT =			0x05;
 static const uint8_t SLOT_IR_PILOT = 			0x06;
 static const uint8_t SLOT_GREEN_PILOT = 		0x07;
 
-static const uint8_t MAX30105_MULTILEDCONFIG1 = 0x11;
-static const uint8_t MAX30105_MULTILEDCONFIG2 = 0x12;
+volatile unsigned long int overflow = 0;
 
-//static const uint8_t MAX30105_PARTICLECONFIG = 	0x0A;    // Note, sometimes listed as "SPO2" config in datasheet (pg. 11)
-//static const uint8_t MAX30105_LED1_PULSEAMP = 	0x0C;
-//static const uint8_t MAX30105_LED2_PULSEAMP = 	0x0D;
-static const uint8_t MAX30105_LED3_PULSEAMP = 	0x0E;
-static const uint8_t MAX30105_LED_PROX_AMP = 	0x10;
+#define BUFFER_SIZE 32
 
-#define MAX30102_MODECONFIG    0x09  // Mode configuration register address
-#define MAX30102_RESET_MASK    0xBF  // Mask to clear the RESET bit
-#define MAX30102_RESET         0x40  // Value to initiate a reset
+volatile int readIdxRED = 0;
+volatile int writeIdxRED = 0;
+volatile int readIdxIR = 0;
+volatile int writeIdxIR = 0;
+volatile int numElemsInBuffRED = 0;
+volatile int numElemsInBuffIR = 0;
+volatile unsigned long int RED_Buffer[BUFFER_SIZE];
+volatile unsigned long int IR_Buffer[BUFFER_SIZE];
 
 
 
+//PUT FUNCTION
+void max30102_RED_putBuff(long int data){ 
+    if (numElemsInBuffRED < BUFFER_SIZE){
+               RED_Buffer[writeIdxRED++] = data;
+               writeIdxRED %= BUFFER_SIZE;
+               ++numElemsInBuffRED;
+    } 
+}
+
+long int max30102_RED_getBuff() {
+        long int x;
+        x = RED_Buffer[readIdxRED++];
+        readIdxRED %= BUFFER_SIZE;
+        --numElemsInBuffRED;
+        return x;
+}
+
+void max30102_IR_putBuff(long int data){
+    if (numElemsInBuffRED < BUFFER_SIZE){
+               IR_Buffer[writeIdxIR++] = data;
+               writeIdxIR %= BUFFER_SIZE;
+               ++numElemsInBuffIR;
+    } 
+}
+
+long int max30102_IR_getBuff() {
+        long int x;
+        x = IR_Buffer[readIdxIR++];
+        readIdxIR %= BUFFER_SIZE;
+        --numElemsInBuffIR;
+        return x;
+}
 
 
 /*
@@ -129,10 +240,6 @@ void I2C_stop() {
 void I2C_write(uint8_t data) {
     I2C2TRN = data;        //  I2C transimit reg
     while (I2C2STATbits.TRSTAT); // Wait for transmission to complete
-    
-//    while (I2C2STATbits.ACKSTAT); // Wait for ACK/NACK from slave
-    //while(IFS3bits.MI2C2IF==0);
-
 }
 
 // Function to read data over I2C
@@ -150,15 +257,15 @@ void I2C_repeated_start() {
 }
 
 void I2C_ACK() {
-    I2C2CONbits.ACKDT =1;//acknowledge data bit(receive)
-    I2C2CONbits.ACKEN =1;
-    while (IFS3bits.MI2C2IF==0);
+    I2C2CONbits.ACKDT = 0;
+    I2C2CONbits.ACKEN = 1;
+    while (I2C2CONbits.ACKEN == 1);
 }
 
 void I2C_NACK() {
-    I2C2CONbits.ACKDT = 0; //not acknowledge data(receive)
-    I2C2CONbits.ACKEN = 0 ;
-    while (IFS3bits.MI2C2IF==0);
+    I2C2CONbits.ACKDT = 1;
+    I2C2CONbits.ACKEN = 1;
+    while (I2C2CONbits.ACKEN == 1);
 }
 
 
@@ -176,8 +283,26 @@ void max30102_init(void) {
     IFS3bits.MI2C2IF = 0; // clr Int flag
 }
 
+void delay_ms(unsigned int ms) {
+    while(ms-- > 0) {
+        asm("repeat #15998");
+        asm("nop");
+    }
+}
 
+void __attribute__((__interrupt__,__auto_psv__)) _T1Interrupt(void) {
+    _T1IF = 0;
+    overflow++;
+}
 
+void timer1_setup(void) {
+    T1CONbits.TON = 0;
+    PR1 = 1999; 
+    T1CONbits.TCKPS = 1; 
+    IFS0bits.T1IF = 0;
+    IEC0bits.T1IE = 1;
+    T1CONbits.TON = 1;
+}
 
 
 void max30102_write_config_SP02() {
@@ -224,38 +349,7 @@ void max30102_write_config_FIFO() {
     I2C_stop();
 }
  
- void max30102_write_config_RED_PulseAmplitude() {
-    I2C_start();  
-    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
 
-    I2C_write(0x0C); 
-
-    I2C_write(0x1F);       
-
-    I2C_stop();
-}
- 
-void max30102_write_config_IR_PulseAmplitude() {
-    I2C_start();  
-    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-
-    I2C_write(0x0D); 
-
-    I2C_write(0x1F);       
-
-    I2C_stop();
-}
-
-void max30102_write_config_LED_CONTROL() {
-    I2C_start();  
-    I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
-
-    I2C_write(0x11); 
-
-    I2C_write(0x1F);       
-
-    I2C_stop();
-}
 
 //void read_data_from_FIFO() {
 //    uint8_t FIFO_WR_PTR_DATA = 0;
@@ -342,11 +436,11 @@ uint32_t max30102_read_partID() {
 
 
 void bitMask(uint8_t reg, uint8_t mask, uint8_t thing);
-uint8_t readRegister8(uint8_t reg);
+uint8_t I2C_read_with_params(uint8_t reg);
 uint8_t I2C_write_with_params(uint8_t reg, uint8_t val);
 void setLEDMode(uint8_t mode);
 
-uint8_t readRegister8(uint8_t reg)
+uint8_t I2C_read_with_params(uint8_t reg)
 {
     I2C_start();
 
@@ -388,17 +482,14 @@ uint8_t I2C_write_with_params(uint8_t reg, uint8_t val) {
     I2C_stop();
 }
 
-void bitMask(uint8_t reg, uint8_t mask, uint8_t thing) {
+void bitMask(uint8_t reg, uint8_t mask, uint8_t val) {
     // Grab current register context
-    uint8_t originalContents = readRegister8(reg);
+    uint8_t originalContents = I2C_read_with_params(reg);
 
-    // Clear out the portions of the register that are masked
     originalContents &= ~mask;  // Invert mask to clear bits
 
     // Set the desired bits
-    originalContents |= (thing & mask);  // Only change bits that are 1s in mask
-
-    // Write the modified contents back to the register
+    originalContents |= (val & mask);  // Only change bits that are 1s in mask
     I2C_write_with_params(reg, originalContents);
 }
 
@@ -406,7 +497,7 @@ void bitMask(uint8_t reg, uint8_t mask, uint8_t thing) {
 void setLEDMode(uint8_t mode) {
     // Set which LEDs are used for sampling -- Red only, RED+IR only, or custom.
     // See datasheet, page 19
-    bitMask(MAX30105_MODECONFIG, MAX30105_MODE_MASK, mode);
+    bitMask(MAX30102_MODECONFIG, MAX30105_MODE_MASK, mode);
 }
 
 void setPulseWidth(uint8_t pulseWidth) {
@@ -426,12 +517,95 @@ void setPulseAmplitudeIR(uint8_t amplitude) {
 }
 
 void max30102_wakeUp(void) {
-  bitMask(MAX30105_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_WAKEUP);
+  bitMask(MAX30102_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_WAKEUP);
 }
 
 void max30102_enableSlot(uint8_t device) {
   bitMask(MAX30105_MULTILEDCONFIG1, MAX30105_SLOT1_MASK, device);
      
+}
+
+void max30102_shutdown(void) {
+    bitMask(MAX30102_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_SHUTDOWN);
+}
+
+
+void max30102_setADC(uint8_t adcRange) {
+  bitMask(MAX30105_PARTICLECONFIG, MAX30105_ADCRANGE_MASK, adcRange);
+}
+
+void max30102_setSampleRate(uint8_t sampleRate) {
+  // sampleRate: MAX30105_SAMPLERATE_50, _100, _200, _400, _800, _1000, _1600, _3200
+  bitMask(MAX30105_PARTICLECONFIG, MAX30105_SAMPLERATE_MASK, sampleRate);
+}
+
+void max30102_setFIFOAvg(uint8_t numSamples) {
+  bitMask(MAX30105_FIFOCONFIG, MAX30105_SAMPLEAVG_MASK, numSamples);
+}
+
+void max30102_clearFIFO(void) {
+  I2C_write_with_params(MAX30105_FIFOWRITEPTR, 0);
+  I2C_write_with_params(MAX30105_FIFOOVERFLOW, 0);
+  I2C_write_with_params(MAX30105_FIFOREADPTR, 0);
+}
+
+void max30102_enableFIFORollover(void) {
+  bitMask(MAX30105_FIFOCONFIG, MAX30105_ROLLOVER_MASK, MAX30105_ROLLOVER_ENABLE);
+}
+
+void max30102_disableFIFORollover(void) {
+  bitMask(MAX30105_FIFOCONFIG, MAX30105_ROLLOVER_MASK, MAX30105_ROLLOVER_DISABLE);
+}
+
+void max30102_setFIFOAlmostFull(uint8_t numberOfSamples) {
+  bitMask(MAX30105_FIFOCONFIG, MAX30105_A_FULL_MASK, numberOfSamples);
+}
+
+void max30102_setProximityThreshold(uint8_t threshMSB) {
+  // Set the IR ADC count that will trigger the beginning of particle-sensing mode.
+  // The threshMSB signifies only the 8 most significant-bits of the ADC count.
+  // See datasheet, page 24.
+    I2C_write_with_params(MAX30105_PROXINTTHRESH, threshMSB);
+}
+
+//Read the FIFO Write Pointer
+uint8_t max30102_getWritePointer(void) {
+  return (I2C_read_with_params(MAX30105_FIFOWRITEPTR));
+}
+
+//Read the FIFO Read Pointer
+uint8_t max30102_getReadPointer(void) {
+  return (I2C_read_with_params(MAX30105_FIFOREADPTR));
+}
+
+void max30102_readTemp(){
+    I2C_write_with_params(MAX30105_DIETEMPCONFIG, 0X01);
+    overflow = 0;
+    while(overflow < 100) {
+        uint8_t temp_Response = I2C_read_with_params(MAX30105_INTSTAT2);
+        if ((temp_Response & MAX30105_INT_DIE_TEMP_RDY_ENABLE) > 0) break; //We're done!
+        delay_ms(1);
+        
+    }
+    
+    int8_t tempInt = I2C_read_with_params(MAX30105_DIETEMPINT);
+    uint8_t tempFrac = I2C_read_with_params(MAX30105_DIETEMPFRAC);
+    return (float)tempInt + ((float)tempFrac * 0.0625);
+}
+
+//float max30102_readTemp_inF() {
+//    float temp = max30102_readTemp();
+//    if (temp != -999.0) temp = temp *1.8 + 32.0;
+//    return (temp);
+//}
+
+//interrupt config
+uint8_t max30102_int1(){
+    return (I2C_read_with_params(MAX30105_INTSTAT1));
+}
+
+uint8_t max30102_int2(){
+    return (I2C_read_with_params(MAX30105_INTSTAT2));
 }
 
 void max30102_softReset(void) {
@@ -447,30 +621,74 @@ void max30102_softReset(void) {
     // Check if reset is complete
     uint8_t resetStatus;
     do {
-        resetStatus = readRegister8(MAX30102_MODECONFIG);
+        resetStatus = I2C_read_with_params(MAX30102_MODECONFIG);
     } while (resetStatus & 0x40);  // Wait for the reset bit to clear
 }
 
+//uint8_t max30102_available(void){
+//  int8_t numberOfSamples = sense.head - sense.tail;
+//  if (numberOfSamples < 0) numberOfSamples += STORAGE_SIZE;
+//
+//  return (numberOfSamples);
+//}
 
+//ask cole
+void I2C_read_multiple_bytes_params(uint8_t reg, int numSamples) {
+    I2C_start();
+    I2C_write(MAX30102_ADDRESS_WRITE);
 
-void delay_ms(unsigned int ms) {
-    while(ms-- > 0) {
-        asm("repeat #15998");
-        asm("nop");
+    I2C_write(reg);
+
+    I2C_repeated_start();
+
+    I2C_write(MAX30102_ADDRESS_READ);
+    long RED_sample = 0;
+    long IR_sample = 0;
+    
+    for (int i = 0; i < numSamples; i++) {
+        RED_sample =  I2C_read() << 16; //msb
+        I2C_ACK();
+        RED_sample |= I2C_read() << 8; //mid byte
+        I2C_ACK();
+        RED_sample |= I2C_read(); //lsb
+        I2C_ACK();
+        max30102_RED_putBuff(RED_sample);
+        
+        IR_sample =  I2C_read() << 16; //msb
+        I2C_ACK();
+        IR_sample |= I2C_read() << 8; //mid byte
+        I2C_ACK();
+        IR_sample |= I2C_read(); //lsb
+        I2C_ACK();
+        max30102_IR_putBuff(IR_sample);
+        
+        
+ 
+        if (i + 1 < numSamples) {
+                I2C_ACK();            // Not the last byte, send ACK
+            } else {
+                I2C_NACK();           // Last byte of the last sample, send NACK
+            }
     }
+
+    I2C_stop(); 
+}
+
+void getRead(){
+    I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 32);
+    I2C_start();
+    I2C_write(MAX30102_ADDRESS_WRITE);
+    I2C_write_with_params(MAX30105_FIFOREADPTR, MAX30105_FIFOREADPTR);
+    I2C_stop();      
 }
 
 
 
-
-int main(void) {
-    pic24_init();
-    max30102_init();
-    
+void max30102_setup_spo2(){
     max30102_write_config_RESET_MODE();
 //    max30102_wakeUp();
     max30102_write_config_MODE();
-    max30102_read_partID();
+    //max30102_read_partID();
 //    max30102_write_config_FIFO();
 //    max30102_write_config_SP02();
 //    max30102_write_config_RED_PulseAmplitude();
@@ -492,12 +710,35 @@ int main(void) {
     delay_ms(100);
     max30102_enableSlot(0x01);
     delay_ms(100);
+    max30102_setFIFOAvg(MAX30105_SAMPLEAVG_8);
+    delay_ms(100);
+    max30102_enableFIFORollover();
+    delay_ms(100);
+    max30102_setADC(MAX30105_ADCRANGE_4096);
+    delay_ms(100);
+    max30102_setSampleRate(MAX30105_SAMPLERATE_800);
+    delay_ms(100);
+    setPulseAmplitudeIR(0xFF);
+    delay_ms(100); 
+}
+
+
+int main(void) {
+    pic24_init();
+    max30102_init();
+    max30102_setup_spo2();
+    //I2C_read_FIFO_data();
+
+    //I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 24);
+
+    getRead();
 
     
     while(1){
         //Testing for PartID
 // Reading the part ID
-         asm("nop");
+        asm("nop");
+        
          
     }
     
