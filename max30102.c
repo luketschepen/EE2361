@@ -8,6 +8,12 @@
 
 #include <xc.h>
 #include <stdint.h>
+#include "spo2_alg.h"
+#include "grove-lcd.h"
+//#include "button.h"
+#include <string.h>
+#include <stdio.h>
+
 
 
 
@@ -180,6 +186,13 @@ volatile unsigned long int RED_Buffer[BUFFER_SIZE];
 volatile unsigned long int IR_Buffer[BUFFER_SIZE];
 
 
+//int32_t bufferLength; //data length
+int32_t spo2 = 0;
+int8_t validSpo2 = 0;
+int32_t heartRate = 0;
+int8_t validHeartRate = 0;
+
+
 
 //PUT FUNCTION
 void max30102_RED_putBuff(long int data){ 
@@ -283,12 +296,7 @@ void max30102_init(void) {
     IFS3bits.MI2C2IF = 0; // clr Int flag
 }
 
-void delay_ms(unsigned int ms) {
-    while(ms-- > 0) {
-        asm("repeat #15998");
-        asm("nop");
-    }
-}
+
 
 void __attribute__((__interrupt__,__auto_psv__)) _T1Interrupt(void) {
     _T1IF = 0;
@@ -686,20 +694,7 @@ void getRead(){
 
 void max30102_setup_spo2(){
     max30102_write_config_RESET_MODE();
-//    max30102_wakeUp();
     max30102_write_config_MODE();
-    //max30102_read_partID();
-//    max30102_write_config_FIFO();
-//    max30102_write_config_SP02();
-//    max30102_write_config_RED_PulseAmplitude();
-//    max30102_write_config_IR_PulseAmplitude();
-//    max30102_write_config_LED_CONTROL();
-//    setLEDMode(MAX30105_MODE_REDIRONLY);
-//    setPulseWidth(MAX30105_PULSEWIDTH_215);
-//    max30102_enableSlot(SLOT_RED_LED);
-//    setPulseAmplitudeRed(0xFF);
-//    setPulseAmplitudeIR(0xFF);
-    //max30102_softReset();
     setLEDMode(0x02);
     delay_ms(100);
     setPulseWidth(0x00);
@@ -723,22 +718,46 @@ void max30102_setup_spo2(){
 }
 
 
+extern void delay_ms(unsigned int ms);
 int main(void) {
     pic24_init();
     max30102_init();
     max30102_setup_spo2();
+    init_I2C();
+    grovelcd_init();
+    lcd_clr();
+    lcd_cursorReturn();
+    //lcd_init();
     //I2C_read_FIFO_data();
 
     //I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 24);
 
-    getRead();
+    //getRead();
+    //maxim_heart_rate_and_oxygen_saturation(IR_Buffer, 100, RED_Buffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
 
-    
     while(1){
+            //l//cd_clr();
+            char adStr[20];
+            char adStr2[20];
         //Testing for PartID
 // Reading the part ID
-        asm("nop");
-        
+            //getRead();
+            //maxim_heart_rate_and_oxygen_saturation(IR_Buffer, 32, RED_Buffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
+            getRead();
+            maxim_heart_rate_and_oxygen_saturation(IR_Buffer, 100, RED_Buffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
+            delay_ms(2);
+            lcd_printStr("SPO2: ");
+            sprintf(adStr, "%d%%", (int)spo2);
+            
+            lcd_printStr(adStr);
+            setCursor(0,1);
+            lcd_printStr("Heart: ");
+            sprintf(adStr2, "%d", (int)heartRate);
+            lcd_printStr(adStr2);
+            lcd_printStr(" BPM");
+            
+            delay_ms(200);
+            max30102_clearFIFO();
          
     }
     
