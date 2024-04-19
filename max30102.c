@@ -765,8 +765,8 @@ int main(void) {
             char adStr[20];
             char adStr2[20];
 
-            void init_Red_Buffer();
-            void init_IR_Buffer();
+            init_Red_Buffer();
+            init_IR_Buffer();
       
         //Testing for PartID
 // Reading the part ID
