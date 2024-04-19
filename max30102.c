@@ -193,6 +193,18 @@ int32_t heartRate = 0;
 int8_t validHeartRate = 0;
 
 
+/*
+ * Function: initBuffer
+ * ---------------------
+ * Initializes the RED circular buffer to zero and resets control variables.
+ */
+void init_Red_Buffer() {
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        RED_Buffer[i] = 0; // Set each element of buffer to zero
+    }
+    writeIdxRED = 0; // Reset currentIndex
+}
+
 
 //PUT FUNCTION
 void max30102_RED_putBuff(long int data){ 
@@ -211,6 +223,19 @@ long int max30102_RED_getBuff() {
         return x;
 }
 
+
+
+/*
+ * Function: initBuffer
+ * ---------------------
+ * Initializes the SP02 circular buffer to zero and resets control variables.
+ */
+void init_IR_Buffer() {
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        IR_Buffer[i] = 0; // Set each element of buffer to zero
+    }
+    writeIdxIR = 0; // Reset currentIndex
+}
 void max30102_IR_putBuff(long int data){
     if (numElemsInBuffRED < BUFFER_SIZE){
                IR_Buffer[writeIdxIR++] = data;
