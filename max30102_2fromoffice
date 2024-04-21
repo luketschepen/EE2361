@@ -182,8 +182,8 @@ volatile int readIdxIR = 0;
 volatile int writeIdxIR = 0;
 volatile int numElemsInBuffRED = 0;
 volatile int numElemsInBuffIR = 0;
-volatile unsigned long int RED_Buffer[BUFFER_SIZE];
-volatile unsigned long int IR_Buffer[BUFFER_SIZE];
+volatile uint32_t RED_Buffer[BUFFER_SIZE];
+volatile uint32_t IR_Buffer[BUFFER_SIZE];
 
 
 //int32_t bufferLength; //data length
@@ -196,39 +196,39 @@ int8_t validHeartRate = 0;
 
 //PUT FUNCTION
 void max30102_RED_putBuff(long int data){ 
-//    if (numElemsInBuffRED < BUFFER_SIZE){
-//               RED_Buffer[writeIdxRED++] = data;
-//               writeIdxRED %= BUFFER_SIZE;
-//               ++numElemsInBuffRED;
-//    } 
-    RED_Buffer[0] = data;
+    if (numElemsInBuffRED < BUFFER_SIZE){
+               RED_Buffer[writeIdxRED++] = data;
+               writeIdxRED %= BUFFER_SIZE;
+               ++numElemsInBuffRED;
+    } 
+    //RED_Buffer[0] = data;
 }
 
 long int max30102_RED_getBuff() {
-//        long int x;
-//        x = RED_Buffer[readIdxRED++];
-//        readIdxRED %= BUFFER_SIZE;
-//        --numElemsInBuffRED;
-//        return x;
-    return RED_Buffer[0];
+        long int x;
+        x = RED_Buffer[readIdxRED++];
+        readIdxRED %= BUFFER_SIZE;
+        --numElemsInBuffRED;
+        return x;
+    //return RED_Buffer[0];
 }
 
 void max30102_IR_putBuff(long int data){
-//    if (numElemsInBuffRED < BUFFER_SIZE){
-//               IR_Buffer[writeIdxIR++] = data;
-//               writeIdxIR %= BUFFER_SIZE;
-//               ++numElemsInBuffIR;
-//    } 
-    IR_Buffer[0] = data;
+    if (numElemsInBuffRED < BUFFER_SIZE){
+               IR_Buffer[writeIdxIR++] = data;
+               writeIdxIR %= BUFFER_SIZE;
+               ++numElemsInBuffIR;
+    } 
+    //IR_Buffer[0] = data;
 }
 
 long int max30102_IR_getBuff() {
-//        long int x;
-//        x = IR_Buffer[readIdxIR++];
-//        readIdxIR %= BUFFER_SIZE;
-//        --numElemsInBuffIR;
-//        return x;
-    return IR_Buffer[0];
+        long int x;
+        x = IR_Buffer[readIdxIR++];
+        readIdxIR %= BUFFER_SIZE;
+        --numElemsInBuffIR;
+        return x;
+    //return IR_Buffer[0];
 }
 
 
@@ -624,12 +624,103 @@ void I2C_read_multiple_bytes_params(uint8_t reg, int numSamples) {
 }
 
 void getRead(){
-    I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 1);
-//    I2C_start();
-//    I2C_write(MAX30102_ADDRESS_WRITE);
-//    I2C_write_with_params(MAX30105_FIFOREADPTR, MAX30105_FIFOREADPTR);
-//    I2C_stop();      
+    //I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 1);
+    //getNewData(MAX30105_FIFODATA, 3);
+      getNewData2(MAX30105_FIFODATA);
+    I2C_start();
+    I2C_write(MAX30102_ADDRESS_WRITE);
+    I2C_write_with_params(MAX30105_FIFOREADPTR, MAX30105_FIFOREADPTR);
+    I2C_stop();      
 }
+
+void getNewData(uint8_t reg, int numSamples) {
+        I2C_start();
+        I2C_write(MAX30102_ADDRESS_WRITE);
+        I2C_write(reg);
+        I2C_repeated_start();
+        I2C_write(MAX30102_ADDRESS_READ);
+      
+        uint32_t RED_sample = 0;
+        uint32_t IR_sample = 0;
+    
+        for (int i = 0; i < numSamples; i++) {
+            RED_sample =  I2C_read() << 16; //msb
+            I2C_ACK();
+            RED_sample |= I2C_read() << 8; //mid byte
+            I2C_ACK();
+            RED_sample |= I2C_read(); //lsb
+            I2C_ACK();
+            max30102_RED_putBuff(RED_sample);
+            IR_sample =  I2C_read() << 16; //msb
+            I2C_ACK();
+            IR_sample |= I2C_read() << 8; //mid byte
+            I2C_ACK();
+            IR_sample |= I2C_read(); //lsb
+            if (i == 2){
+               I2C_NACK();
+            } else {
+               I2C_ACK();
+            }
+            max30102_IR_putBuff(IR_sample);
+        }
+        
+       
+        I2C_stop();
+
+}
+
+void getNewData2(void) {
+    uint8_t readPointer = max30102_getReadPointer();
+    uint8_t writePointer = max30102_getWritePointer();
+    uint8_t numSamples = (writePointer - readPointer) & 0x1F; // Assuming 32-point buffer, & 0x1F handles wrap-around
+
+    if (numSamples == 0) {
+        //setCursor(0, 0);
+        //lcd_printStr("!NO DATA!");
+        return; // Exit if no data
+    }
+
+    int32_t bytesToRead = numSamples * 6; // 6 bytes per sample (3 bytes RED, 3 bytes IR)
+    
+    I2C_start();
+    I2C_write(MAX30102_ADDRESS_WRITE);
+    I2C_write(MAX30105_FIFODATA); // Address of FIFO data register
+    I2C_repeated_start();
+    I2C_write(MAX30102_ADDRESS_READ);
+    if (numSamples < 0) {
+        numSamples += 32;
+    }
+    while (bytesToRead > 0) {
+        uint32_t red_sample = 0;
+        uint32_t ir_sample = 0;
+
+        // Read RED sample
+        red_sample |= (uint32_t)I2C_read() << 16; // MSB
+        I2C_ACK();
+        red_sample |= (uint32_t)I2C_read() << 8; // Middle byte
+        I2C_ACK();
+        red_sample |= I2C_read(); // LSB
+        I2C_ACK(); // ACK after each byte except the last byte of the last sample
+        max30102_RED_putBuff(red_sample);
+
+        // Read IR sample
+        ir_sample |= (uint32_t)I2C_read() << 16; // MSB
+        I2C_ACK();
+        ir_sample |= (uint32_t)I2C_read() << 8; // Middle byte
+        I2C_ACK();
+        ir_sample |= I2C_read(); // LSB
+        bytesToRead -= 6; // Reduce the byte counter by 6 (3 for RED, 3 for IR)
+        if (bytesToRead > 0) {
+            I2C_ACK();
+        } else {
+            I2C_NACK(); // NACK after last byte of the last sample
+        }
+        max30102_IR_putBuff(ir_sample);
+    }
+
+    I2C_stop(); // Stop I2C communication after reading all data
+}
+
 
 
 
@@ -657,33 +748,6 @@ void max30102_setup_spo2(){
     setPulseAmplitudeIR(0xFF);
     delay_ms(100); 
 }
-
-
-/*
- * Function: initBuffer
- * ---------------------
- * Initializes the RED circular buffer to zero and resets control variables.
- */
-void init_Red_Buffer() {
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        RED_Buffer[i] = 0; // Set each element of buffer to zero
-    }
-    writeIdxRED = 0; // Reset currentIndex
-}
-
-/*
- * Function: initBuffer
- * ---------------------
- * Initializes the SP02 circular buffer to zero and resets control variables.
- */
-void init_IR_Buffer() {
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        IR_Buffer[i] = 0; // Set each element of buffer to zero
-    }
-    writeIdxIR = 0; // Reset currentIndex
-}
-
-
 
 extern void delay_ms(unsigned int ms);
 int main(void) {
@@ -715,8 +779,8 @@ int main(void) {
 
             getRead();
             //sprintf(adStr, "%d%", max30102_IR_getBuff());
-            long int IR = max30102_IR_getBuff();
-            long int RED = max30102_RED_getBuff();
+            uint32_t IR = max30102_IR_getBuff();
+            uint32_t RED = max30102_RED_getBuff();
 //            long int IR = 10000;
 //            long int RED = 20000;
             sprintf(adStr, "%ld", IR);
@@ -729,12 +793,12 @@ int main(void) {
             setCursor(0,1);
             lcd_printStr("Red : ");
             lcd_printStr(adStr2);
-//            LATAbits.LATA0 = 0;
+////            LATAbits.LATA0 = 0;
             
             
             
-            //maxim_heart_rate_and_oxygen_saturation(IR_Buffer, 100, RED_Buffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
-            
+//            maxim_heart_rate_and_oxygen_saturation(IR_Buffer, 100, RED_Buffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
+//            
 //            delay_ms(2);
 //            lcd_printStr("SPO2: ");
 //            sprintf(adStr, "%d%%", (int)spo2);
@@ -745,7 +809,7 @@ int main(void) {
 //            sprintf(adStr2, "%d", (int)heartRate);
 //            lcd_printStr(adStr2);
 //            lcd_printStr(" BPM");
-//            
+            
             delay_ms(500);
             LATAbits.LATA0 ^= 1;
             //max30102_clearFIFO();
