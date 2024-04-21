@@ -165,6 +165,43 @@ volatile int numElemsInBuffIR = 0;
 volatile unsigned long int RED_Buffer[BUFFER_SIZE];
 volatile unsigned long int IR_Buffer[BUFFER_SIZE];
 
+void max30102_RED_putBuff(long int data);
+long int max30102_RED_getBuff();
+void max30102_IR_putBuff(long int data);
+long int max30102_IR_getBuff();
+void max30102_init(void);
+void timer1_setup(void);
+void max30102_write_config_SP02();
+void max30102_write_config_FIFO();
+void max30102_write_config_MODE();
+void max30102_write_config_RESET_MODE();
+uint32_t max30102_read_partID();
+void bitMask(uint8_t reg, uint8_t mask, uint8_t thing);
+void setLEDMode(uint8_t mode);
+void setPulseWidth(uint8_t pulseWidth);
+void setPulseAmplitudeRed(uint8_t amplitude);
+void setPulseAmplitudeProximity(uint8_t amplitude);
+void setPulseAmplitudeIR(uint8_t amplitude);
+void max30102_wakeUp(void);
+void max30102_enableSlot(uint8_t device);
+void max30102_shutdown(void);
+void max30102_setADC(uint8_t adcRange);
+void max30102_setSampleRate(uint8_t sampleRate);
+void max30102_setFIFOAvg(uint8_t numSamples);
+void max30102_clearFIFO(void);
+void max30102_enableFIFORollover(void);
+void max30102_disableFIFORollover(void);
+void max30102_setFIFOAlmostFull(uint8_t numberOfSamples);
+void max30102_setProximityThreshold(uint8_t threshMSB);
+uint8_t max30102_getWritePointer(void);
+uint8_t max30102_getReadPointer(void);
+void max30102_readTemp();
+uint8_t max30102_int1();
+uint8_t max30102_int2();
+void max30102_softReset(void);
+void getRead();
+void max30102_setup_spo2();
+
 
 #ifdef	__cplusplus
 }
