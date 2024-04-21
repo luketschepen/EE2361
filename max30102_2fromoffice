@@ -625,12 +625,12 @@ void I2C_read_multiple_bytes_params(uint8_t reg, int numSamples) {
 
 void getRead(){
     //I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 1);
-    //getNewData(MAX30105_FIFODATA, 3);
-      getNewData2(MAX30105_FIFODATA);
-    I2C_start();
-    I2C_write(MAX30102_ADDRESS_WRITE);
-    I2C_write_with_params(MAX30105_FIFOREADPTR, MAX30105_FIFOREADPTR);
-    I2C_stop();      
+    getNewData(MAX30105_FIFODATA, 3);
+      //getNewData2(MAX30105_FIFODATA);
+//    I2C_start();
+//    I2C_write(MAX30102_ADDRESS_WRITE);
+//    I2C_write_with_params(MAX30105_FIFOREADPTR, MAX30105_FIFOREADPTR);
+//    I2C_stop();      
 }
 
 void getNewData(uint8_t reg, int numSamples) {
@@ -670,10 +670,13 @@ void getNewData(uint8_t reg, int numSamples) {
 }
 
 void getNewData2(void) {
-    uint8_t readPointer = max30102_getReadPointer();
-    uint8_t writePointer = max30102_getWritePointer();
-    uint8_t numSamples = (writePointer - readPointer) & 0x1F; // Assuming 32-point buffer, & 0x1F handles wrap-around
-
+    uint8_t readPointer = 0;
+    uint8_t writePointer = 0;
+    uint8_t numSamples = 0; // Assuming 32-point buffer, & 0x1F handles wrap-around
+    while(1) {
+        uint8_t readPointer = max30102_getReadPointer();
+        uint8_t writePointer = max30102_getWritePointer();
+        uint8_t numSamples = (writePointer - readPointer) & 0x1F;
     if (numSamples == 0) {
         //setCursor(0, 0);
         //lcd_printStr("!NO DATA!");
@@ -718,7 +721,9 @@ void getNewData2(void) {
         max30102_IR_putBuff(ir_sample);
     }
 
-    I2C_stop(); // Stop I2C communication after reading all data
+        I2C_stop(); // Stop I2C communication after reading all data
+        return;
+    }
 }
 
 
@@ -737,13 +742,13 @@ void max30102_setup_spo2(){
     delay_ms(100);
     max30102_enableSlot(0x01);
     delay_ms(100);
-    max30102_setFIFOAvg(MAX30105_SAMPLEAVG_8);
+    max30102_setFIFOAvg(MAX30105_SAMPLEAVG_4);//8
     delay_ms(100);
     max30102_enableFIFORollover();
     delay_ms(100);
-    max30102_setADC(MAX30105_ADCRANGE_4096);
+    max30102_setADC(MAX30105_ADCRANGE_2048);//4096
     delay_ms(100);
-    max30102_setSampleRate(MAX30105_SAMPLERATE_800);
+    max30102_setSampleRate(MAX30105_SAMPLERATE_50); //800
     delay_ms(100);
     setPulseAmplitudeIR(0xFF);
     delay_ms(100); 
