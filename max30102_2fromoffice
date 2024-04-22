@@ -857,15 +857,32 @@ void setup() {
 }
 
 
+
+
+#define MOVING_AVG_SIZE 10 // Adjust the moving average size as needed
+
+// Function to calculate moving average
+uint32_t calculateMovingAverage(uint32_t *buffer, int size) {
+    uint32_t sum = 0;
+    for (int i = 0; i < size; i++) {
+        sum += buffer[i];
+    }
+    return sum / size;
+}
+
+
+
 int main(void) {
     setup();  // Perform all initial setup tasks
 
     uint32_t irBuffer[100];  // Buffer for infrared sensor data
     uint32_t redBuffer[100]; // Buffer for red sensor data
+    uint32_t heartRateBuffer[MOVING_AVG_SIZE] = {0}; // Buffer for heart rate moving average
 
 
     char adStr[32];  // Buffer for display strings
     char adStr2[32]; // Buffer for display strings
+
 
     while(1) {
         getRead();
@@ -880,6 +897,20 @@ int main(void) {
         
         
         if (spo2 > 75 && spo2 <= 100) {
+
+
+             // Update heart rate buffer with latest value
+            for (int i = 0; i < MOVING_AVG_SIZE - 1; i++) {
+                heartRateBuffer[i] = heartRateBuffer[i + 1];
+            }
+            heartRateBuffer[MOVING_AVG_SIZE - 1] = heartRate;
+            
+            // Calculate moving average of heart rate
+            uint32_t heartRateAvg = calculateMovingAverage(heartRateBuffer, MOVING_AVG_SIZE);
+
+
+
+          
             lcd_clr();            // Clear the LCD display for fresh data
             setCursor(0,0);
             sprintf(adStr, "SPO2: %d %%", (int)spo2);
@@ -887,6 +918,9 @@ int main(void) {
 
             setCursor(0,1);
             sprintf(adStr2, "Heart: %d BPM", (int)heartRate);
+
+            sprintf(adStr2, "Heart: %d BPM", (int)heartRateAvg);
+  
             lcd_printStr(adStr2);
 
             delay_ms(500);  // Delay for stability and readability
