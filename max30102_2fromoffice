@@ -186,6 +186,7 @@ volatile uint32_t RED_Buffer[BUFFER_SIZE];
 volatile uint32_t IR_Buffer[BUFFER_SIZE];
 
 
+
 //int32_t bufferLength; //data length
 int32_t spo2 = 0;
 int8_t validSpo2 = 0;
@@ -435,16 +436,28 @@ uint8_t I2C_write_with_params(uint8_t reg, uint8_t val) {
     I2C_stop();
 }
 
+//void bitMask(uint8_t reg, uint8_t mask, uint8_t val) {
+//    // Grab current register context
+//    uint8_t originalContents = I2C_read_with_params(reg);
+//
+//    originalContents &= ~mask;  // Invert mask to clear bits
+//
+//    // Set the desired bits
+//    originalContents |= (val & mask);  // Only change bits that are 1s in mask
+//    I2C_write_with_params(reg, originalContents);
+//}
+
 void bitMask(uint8_t reg, uint8_t mask, uint8_t val) {
     // Grab current register context
     uint8_t originalContents = I2C_read_with_params(reg);
 
-    originalContents &= ~mask;  // Invert mask to clear bits
+    // Clear bits not protected by mask and set bits according to val
+    originalContents = (originalContents & mask) | (val & ~mask);
 
-    // Set the desired bits
-    originalContents |= (val & mask);  // Only change bits that are 1s in mask
+    // Write back the modified contents to the register
     I2C_write_with_params(reg, originalContents);
 }
+
 
 
 void setLEDMode(uint8_t mode) {
@@ -473,10 +486,26 @@ void max30102_wakeUp(void) {
   bitMask(MAX30102_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_WAKEUP);
 }
 
-void max30102_enableSlot(uint8_t device) {
-  bitMask(MAX30105_MULTILEDCONFIG1, MAX30105_SLOT1_MASK, device);
-     
+void max30102_enableSlot(uint8_t slotNumber, uint8_t device) {
+    switch (slotNumber) {
+        case 1:
+            bitMask(MAX30105_MULTILEDCONFIG1, MAX30105_SLOT1_MASK, device);
+            break;
+        case 2:
+            bitMask(MAX30105_MULTILEDCONFIG1, MAX30105_SLOT2_MASK, device << 4);
+            break;
+        case 3:
+            bitMask(MAX30105_MULTILEDCONFIG2, MAX30105_SLOT3_MASK, device);
+            break;
+        case 4:
+            bitMask(MAX30105_MULTILEDCONFIG2, MAX30105_SLOT4_MASK, device << 4);
+            break;
+        default:
+            break;
+    }
 }
+    
+
 
 void max30102_shutdown(void) {
     bitMask(MAX30102_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_SHUTDOWN);
@@ -625,8 +654,8 @@ void I2C_read_multiple_bytes_params(uint8_t reg, int numSamples) {
 
 void getRead(){
     //I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 1);
-    getNewData(MAX30105_FIFODATA, 3);
-      //getNewData2(MAX30105_FIFODATA);
+    //getNewData(MAX30105_FIFODATA, 3);
+      getNewData2();
 //    I2C_start();
 //    I2C_write(MAX30102_ADDRESS_WRITE);
 //    I2C_write_with_params(MAX30105_FIFOREADPTR, MAX30105_FIFOREADPTR);
@@ -670,13 +699,10 @@ void getNewData(uint8_t reg, int numSamples) {
 }
 
 void getNewData2(void) {
-    uint8_t readPointer = 0;
-    uint8_t writePointer = 0;
-    uint8_t numSamples = 0; // Assuming 32-point buffer, & 0x1F handles wrap-around
-    while(1) {
-        uint8_t readPointer = max30102_getReadPointer();
-        uint8_t writePointer = max30102_getWritePointer();
-        uint8_t numSamples = (writePointer - readPointer) & 0x1F;
+    uint8_t readPointer = max30102_getReadPointer();
+    uint8_t writePointer = max30102_getWritePointer();
+    uint8_t numSamples = (writePointer - readPointer) & 0x1F; // Assuming 32-point buffer, & 0x1F handles wrap-around
+
     if (numSamples == 0) {
         //setCursor(0, 0);
         //lcd_printStr("!NO DATA!");
@@ -684,7 +710,7 @@ void getNewData2(void) {
     }
 
     int32_t bytesToRead = numSamples * 6; // 6 bytes per sample (3 bytes RED, 3 bytes IR)
-    
+   
     I2C_start();
     I2C_write(MAX30102_ADDRESS_WRITE);
     I2C_write(MAX30105_FIFODATA); // Address of FIFO data register
@@ -704,7 +730,7 @@ void getNewData2(void) {
         I2C_ACK();
         red_sample |= I2C_read(); // LSB
         I2C_ACK(); // ACK after each byte except the last byte of the last sample
-        max30102_RED_putBuff(red_sample);
+        max30102_RED_putBuff(red_sample & 0x3FFFF);
 
         // Read IR sample
         ir_sample |= (uint32_t)I2C_read() << 16; // MSB
@@ -718,109 +744,163 @@ void getNewData2(void) {
         } else {
             I2C_NACK(); // NACK after last byte of the last sample
         }
-        max30102_IR_putBuff(ir_sample);
+        max30102_IR_putBuff(ir_sample & 0x3FFFF);
     }
 
-        I2C_stop(); // Stop I2C communication after reading all data
-        return;
-    }
+    I2C_stop(); // Stop I2C communication after reading all data
 }
 
 
-
-
 void max30102_setup_spo2(){
-    //softReset();
-    max30102_write_config_MODE(); 
-    setLEDMode(0x02);
     delay_ms(100);
-    setPulseWidth(0x00);
-    delay_ms(100);
-    setPulseAmplitudeRed(0xFF);
-    delay_ms(100);
-    setPulseAmplitudeProximity(0xFF);
-    delay_ms(100);
-    max30102_enableSlot(0x01);
+    softReset();
     delay_ms(100);
     max30102_setFIFOAvg(MAX30105_SAMPLEAVG_4);//8
     delay_ms(100);
     max30102_enableFIFORollover();
     delay_ms(100);
-    max30102_setADC(MAX30105_ADCRANGE_2048);//4096
+    setLEDMode(MAX30105_MODE_REDIRONLY);
     delay_ms(100);
-    max30102_setSampleRate(MAX30105_SAMPLERATE_50); //800
+    max30102_setADC(MAX30105_ADCRANGE_4096);//4096
     delay_ms(100);
-    setPulseAmplitudeIR(0xFF);
-    delay_ms(100); 
+    max30102_setSampleRate(MAX30105_SAMPLERATE_100); //800
+    delay_ms(100);
+    setPulseWidth(MAX30105_PULSEWIDTH_411);
+    delay_ms(100);
+    setPulseAmplitudeRed(0x1F);
+    delay_ms(100);
+    setPulseAmplitudeIR(0x1F);
+    delay_ms(100);
+    setPulseAmplitudeProximity(0x1F);
+    delay_ms(100);
+    max30102_enableSlot(1, SLOT_RED_LED);
+    delay_ms(100);
+    max30102_enableSlot(2, SLOT_IR_LED);
+    delay_ms(100);
+    max30102_clearFIFO(); 
 }
 
 extern void delay_ms(unsigned int ms);
-int main(void) {
-    pic24_init();
-    max30102_init();
-    max30102_setup_spo2();
-    init_I2C();
-    grovelcd_init();
-    lcd_clr();
-    lcd_cursorReturn();
-    //lcd_init();
-    //I2C_read_FIFO_data();
-
-    //I2C_read_multiple_bytes_params(MAX30105_FIFODATA, 24);
-
-    //getRead();
-    //maxim_heart_rate_and_oxygen_saturation(IR_Buffer, 100, RED_Buffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
-
-    
-    int i = 0;
-    //getRead();
-    while(1){
-            //l//cd_clr();
-            //softReset();
-            setCursor(0,0);
-            char adStr[32];
-            char adStr2[32];
-           
-
-            getRead();
-            //sprintf(adStr, "%d%", max30102_IR_getBuff());
-            uint32_t IR = max30102_IR_getBuff();
-            uint32_t RED = max30102_RED_getBuff();
-//            long int IR = 10000;
-//            long int RED = 20000;
-            sprintf(adStr, "%ld", IR);
-            sprintf(adStr2, "%ld", RED);
-            
-            setCursor(0,0);
-            lcd_printStr("IR : ");
-            lcd_printStr(adStr);
-                   
-            setCursor(0,1);
-            lcd_printStr("Red : ");
-            lcd_printStr(adStr2);
+//int main(void) {
+//    pic24_init();
+//    max30102_init();
+//    max30102_setup_spo2();
+//    init_I2C();
+//    grovelcd_init();
+//    lcd_clr();
+//    lcd_cursorReturn();
+//    
+//    int i = 0;
+//    //getRead();
+//    while(1){
+//            //l//cd_clr();
+//            //softReset();
+//            setCursor(0,0);
+//            char adStr[32];
+//            char adStr2[32];
+//           
+//
+//            getRead();
+//            //sprintf(adStr, "%d%", max30102_IR_getBuff());
+//            uint32_t IR = max30102_IR_getBuff();
+//            uint32_t RED = max30102_RED_getBuff();
+////            long int IR = 10000;
+////            long int RED = 20000;
+////            sprintf(adStr, "%ld", IR);
+////            sprintf(adStr2, "%ld", RED);
+////            
+////            setCursor(0,0);
+////            lcd_printStr("IR : ");
+////            lcd_printStr(adStr);
+////                   
+////            setCursor(0,1);
+////            lcd_printStr("Red : ");
+////            lcd_printStr(adStr2);
 ////            LATAbits.LATA0 = 0;
-            
-            
-            
+//            
+//            
+//            
 //            maxim_heart_rate_and_oxygen_saturation(IR_Buffer, 100, RED_Buffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
 //            
 //            delay_ms(2);
 //            lcd_printStr("SPO2: ");
-//            sprintf(adStr, "%d%%", (int)spo2);
-//            
+//            sprintf(adStr, "%d", (int)spo2);
 //            lcd_printStr(adStr);
+//            lcd_printStr(" %");
 //            setCursor(0,1);
 //            lcd_printStr("Heart: ");
 //            sprintf(adStr2, "%d", (int)heartRate);
 //            lcd_printStr(adStr2);
 //            lcd_printStr(" BPM");
+//            
+//            delay_ms(500);
+//            LATAbits.LATA0 ^= 1;
+//            //max30102_clearFIFO();
+//         
+//    }
+//    
+//    return 0;
+//    
+//}
+
+
+
+// Initialization of necessary peripherals and sensors
+void setup() {
+    pic24_init();                  // Initialize PIC24 hardware configurations
+    max30102_init();               // Initialize the MAX30102 sensor
+    max30102_setup_spo2();         // Setup the sensor for SpO2 measurement
+    init_I2C();                    // Initialize I2C communication
+    grovelcd_init();               // Initialize the Grove LCD
+    lcd_clr();                     // Clear the LCD display
+    lcd_cursorReturn();            // Return cursor to the home position
+}
+
+
+int main(void) {
+    setup();  // Perform all initial setup tasks
+
+    uint32_t irBuffer[100];  // Buffer for infrared sensor data
+    uint32_t redBuffer[100]; // Buffer for red sensor data
+
+
+    char adStr[32];  // Buffer for display strings
+    char adStr2[32]; // Buffer for display strings
+
+    while(1) {
+        getRead();
+        // Read 100 samples into the buffers
+        for (int i = 0; i < 100; i++) {
+            irBuffer[i] = max30102_IR_getBuff();    // Get one IR sample
+            redBuffer[i] =  max30102_RED_getBuff();  // Get one Red sample
+        }
+
+        // Process the collected data
+        maxim_heart_rate_and_oxygen_saturation(irBuffer, 100, redBuffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
+        
+        
+        if (spo2 > 75 && spo2 <= 100) {
+            lcd_clr();            // Clear the LCD display for fresh data
+            setCursor(0,0);
+            sprintf(adStr, "SPO2: %d %%", (int)spo2);
+            lcd_printStr(adStr);
+
+            setCursor(0,1);
+            sprintf(adStr2, "Heart: %d BPM", (int)heartRate);
+            lcd_printStr(adStr2);
+
+            delay_ms(500);  // Delay for stability and readability
             
+            
+        } else {
+        // Update the LCD display
+            setCursor(0,0);
+            lcd_printStr("No Valid Data");
+            setCursor(0,1); 
+            lcd_printStr("Press button for SPO2 or Heart rate"); //wed wanna scroll this.
             delay_ms(500);
-            LATAbits.LATA0 ^= 1;
-            //max30102_clearFIFO();
-         
+        }
     }
-    
+
     return 0;
-    
 }
