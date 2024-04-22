@@ -917,7 +917,7 @@ int main(void) {
             lcd_printStr(adStr);
 
             setCursor(0,1);
-            sprintf(adStr2, "Heart: %d BPM", (int)heartRate);
+            //sprintf(adStr2, "Heart: %d BPM", (int)heartRate);
 
             sprintf(adStr2, "Heart: %d BPM", (int)heartRateAvg);
   
