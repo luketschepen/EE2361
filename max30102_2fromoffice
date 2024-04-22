@@ -878,6 +878,7 @@ int main(void) {
     uint32_t irBuffer[100];  // Buffer for infrared sensor data
     uint32_t redBuffer[100]; // Buffer for red sensor data
     uint32_t heartRateBuffer[MOVING_AVG_SIZE] = {0}; // Buffer for heart rate moving average
+    uint32_t spo2Buffer[MOVING_AVG_SIZE] = {0}; // Buffer for SpO2 moving average
 
 
     char adStr[32];  // Buffer for display strings
@@ -904,16 +905,24 @@ int main(void) {
                 heartRateBuffer[i] = heartRateBuffer[i + 1];
             }
             heartRateBuffer[MOVING_AVG_SIZE - 1] = heartRate;
+
+            // Update SpO2 buffer with latest value
+            for (int i = 0; i < MOVING_AVG_SIZE - 1; i++) {
+                spo2Buffer[i] = spo2Buffer[i + 1];
+            }
+            spo2Buffer[MOVING_AVG_SIZE - 1] = spo2;
+
             
             // Calculate moving average of heart rate
             uint32_t heartRateAvg = calculateMovingAverage(heartRateBuffer, MOVING_AVG_SIZE);
-
+            uint32_t spo2Avg = calculateMovingAverage(spo2Buffer, MOVING_AVG_SIZE);
 
 
           
             lcd_clr();            // Clear the LCD display for fresh data
             setCursor(0,0);
-            sprintf(adStr, "SPO2: %d %%", (int)spo2);
+            //sprintf(adStr, "SPO2: %d %%", (int)spo2);
+            sprintf(adStr, "SPO2: %d %%", (int)spo2Avg);
             lcd_printStr(adStr);
 
             setCursor(0,1);
