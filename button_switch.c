@@ -1,6 +1,6 @@
 /*
  * File:   button_switch.c
- * Author(s): Luke, Cole, Dhayalan, Nick
+ * Author(s): Luke, Cole, Nick
  *
  * Created on April 20, 2024, 7:56 AM
  */
