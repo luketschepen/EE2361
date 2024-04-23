@@ -195,7 +195,11 @@ int8_t validHeartRate = 0;
 
 
 
-//PUT FUNCTION
+/*
+ * put function which puts data in the RED LED buffer. 
+ * 
+ * data - long int of data to put in the buffer. 
+ */
 void max30102_RED_putBuff(long int data){ 
     if (numElemsInBuffRED < BUFFER_SIZE){
                RED_Buffer[writeIdxRED++] = data;
@@ -205,6 +209,9 @@ void max30102_RED_putBuff(long int data){
     //RED_Buffer[0] = data;
 }
 
+/*
+ * function that gets an element from the RED LED buffer. 
+ */
 long int max30102_RED_getBuff() {
         long int x;
         x = RED_Buffer[readIdxRED++];
@@ -214,6 +221,11 @@ long int max30102_RED_getBuff() {
     //return RED_Buffer[0];
 }
 
+/*
+ * put function which puts data in the IR LED buffer. 
+ * 
+ * data - long int of data to put in the buffer. 
+ */
 void max30102_IR_putBuff(long int data){
     if (numElemsInBuffRED < BUFFER_SIZE){
                IR_Buffer[writeIdxIR++] = data;
@@ -223,6 +235,9 @@ void max30102_IR_putBuff(long int data){
     //IR_Buffer[0] = data;
 }
 
+/*
+ * function that gets an element from the IR LED buffer. 
+ */
 long int max30102_IR_getBuff() {
         long int x;
         x = IR_Buffer[readIdxIR++];
@@ -243,24 +258,27 @@ void pic24_init() {
     TRISAbits.TRISA0 = 0; 
 }
 
-
+//function that initiates the start condition for I2C communication.
 void I2C_start() {
     I2C2CONbits.SEN = 1;   // Initiate start condition
     while (I2C2CONbits.SEN);
 };
 
+//function that initiates the stop condition for I2C communication.
 void I2C_stop() {
     I2C2CONbits.PEN = 1;   // Initiate stop condition
     while (I2C2CONbits.PEN);
 };
 
 // Function to write data over I2C
+//data - given data to be written
 void I2C_write(uint8_t data) {
     I2C2TRN = data;        //  I2C transimit reg
     while (I2C2STATbits.TRSTAT); // Wait for transmission to complete
 }
 
 // Function to read data over I2C
+// enables receiving mode and returns received element
 uint32_t I2C_read() {
     I2C2RCV = 0;
     I2C2CONbits.RCEN = 1; // Enable receive mode
@@ -268,18 +286,28 @@ uint32_t I2C_read() {
     return I2C2RCV;        // I2C receive re
 }
 
+/*
+ * function that initiates the repeated start condition and 
+ * waits for the start condition to complete. 
+ */
 void I2C_repeated_start() {
     I2C2CONbits.RSEN = 1;  // Initiate repeated start condition
     while (I2C2CONbits.RSEN == 1);
     //while (I2C2CONbits.RSEN); // Wait for repeated start condition to complete
 }
 
+/*
+ * function that sends acknowledgment over I2C communication.
+ */
 void I2C_ACK() {
     I2C2CONbits.ACKDT = 0;
     I2C2CONbits.ACKEN = 1;
     while (I2C2CONbits.ACKEN == 1);
 }
 
+/*
+ * function that sends non acknowledgment over I2C communication.
+ */
 void I2C_NACK() {
     I2C2CONbits.ACKDT = 1;
     I2C2CONbits.ACKEN = 1;
@@ -288,7 +316,7 @@ void I2C_NACK() {
 
 
 
-// Initialize MAX30102 sensor
+//Initializes the MAX30102 sensor by configuring its settings and registers.
 void max30102_init(void) {
     I2C2CONbits.I2CEN = 0;
     
@@ -302,12 +330,17 @@ void max30102_init(void) {
 }
 
 
-
+/*
+ * timer1 interrupt to take care of the overflow
+ */
 void __attribute__((__interrupt__,__auto_psv__)) _T1Interrupt(void) {
     _T1IF = 0;
     overflow++;
 }
 
+/*
+ * setup the timer1 with the correct parameters. 
+ */
 void timer1_setup(void) {
     T1CONbits.TON = 0;
     PR1 = 1999; 
@@ -317,7 +350,11 @@ void timer1_setup(void) {
     T1CONbits.TON = 1;
 }
 
-
+/*
+ * Writes the configuration for the SpO2 (blood oxygen saturation) sensor mode.
+ * USes the process of I2C start, and write to the write address of the I2C and writes to the correct addresses. 
+ * Configs in datasheet pg. 18
+ */
 void max30102_write_config_SP02() {
     I2C_start();  
     I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
@@ -329,6 +366,11 @@ void max30102_write_config_SP02() {
     I2C_stop();
 }
 
+/*
+ * Writes the configuration for the FIFO (First In, First Out) buffer of the MAX30102 sensor.
+ * USes the process of I2C start, and write to the write address of the I2C and writes to the correct addresses of the FIFO
+ * Configs in datasheet pg. 17
+ */
 void max30102_write_config_FIFO() {
     I2C_start();  
     I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
@@ -340,6 +382,10 @@ void max30102_write_config_FIFO() {
     I2C_stop();
 }
 
+/* Writes the configuration for the operating mode of the MAX30102 sensor.
+ * Uses the process of I2C start, and write to the write address of the I2C and writes to the correct addresses of the MODE configs
+ * Configs in datasheet pg. 17
+ */
  void max30102_write_config_MODE() {
     I2C_start();  
     I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
@@ -350,7 +396,11 @@ void max30102_write_config_FIFO() {
 
     I2C_stop();
 }
- 
+
+/* function which writes the configuration to reset the operating mode of the MAX30102 sensor.
+ * Uses the process of I2C start, and write to the write address of the I2C and writes to the correct addresses of the MODE configs
+  * Configs in datasheet pg. 17
+ */
  void max30102_write_config_RESET_MODE() {
     I2C_start();  
     I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
@@ -362,6 +412,11 @@ void max30102_write_config_FIFO() {
     I2C_stop();
 }
 
+/*
+  * function which reads the Part ID register of the MAX30102 sensor to verify its identity.
+  * starts by sending device address and write mode, writes to the PART_ID, sends repeated start and get the partID with I2C read. 
+  * sends ACK and then stops I2C read. 
+  */
 uint32_t max30102_read_partID() {
         I2C_start();  
         I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
@@ -394,6 +449,12 @@ uint8_t I2C_read_with_params(uint8_t reg);
 uint8_t I2C_write_with_params(uint8_t reg, uint8_t val);
 void setLEDMode(uint8_t mode);
 
+/*
+ * Reads a single byte of data from a specific register address over the I2C. 
+ * uses the same process as reading the PartID
+ * 
+ * reg - register address to read from 
+ */
 uint8_t I2C_read_with_params(uint8_t reg)
 {
     I2C_start();
@@ -424,7 +485,14 @@ uint8_t I2C_read_with_params(uint8_t reg)
     return data;
 }
 
-
+/*
+ * writes a single byte of data from a specific register address over the I2C. 
+ * writes to the register with the value to put in
+ * 
+ * reg - address to read to 
+ * 
+ * val - value to put into address to match the configurations
+ */
 uint8_t I2C_write_with_params(uint8_t reg, uint8_t val) {
     I2C_start();  
     I2C_write(MAX30102_ADDRESS_WRITE); // Send device address + write mode
@@ -447,6 +515,13 @@ uint8_t I2C_write_with_params(uint8_t reg, uint8_t val) {
 //    I2C_write_with_params(reg, originalContents);
 //}
 
+/*
+ * Modifies specific bits of a register by applying a mask and setting new values.
+ * 
+ * reg - register to read from
+ * mask - mask address
+ * val - bits to change to
+ */
 void bitMask(uint8_t reg, uint8_t mask, uint8_t val) {
     // Grab current register context
     uint8_t originalContents = I2C_read_with_params(reg);
@@ -459,33 +534,46 @@ void bitMask(uint8_t reg, uint8_t mask, uint8_t val) {
 }
 
 
-
+// function which sets which LEDs are used for sampling -- Red only, RED+IR only, or custom.
+// mode - the mode value to set mode as
 void setLEDMode(uint8_t mode) {
     // Set which LEDs are used for sampling -- Red only, RED+IR only, or custom.
     // See datasheet, page 19
     bitMask(MAX30102_MODECONFIG, MAX30105_MODE_MASK, mode);
 }
 
+//function which sets the pulse width for LED operation.
+//pulseWidth - pulsewidth value to set to
 void setPulseWidth(uint8_t pulseWidth) {
     bitMask(MAX30105_PARTICLECONFIG, MAX30105_PULSEWIDTH_MASK, pulseWidth);
 }
 
+//function which sets the amplitude of the RED LED 
+//amplitude - amplitude value to set to for RED LED
 void setPulseAmplitudeRed(uint8_t amplitude) {
     I2C_write_with_params(MAX30105_LED1_PULSEAMP, amplitude);
 }
 
+//function which sets the amplitude of the proximity sensor LED 
+//amplitude - amplitude proximity value to set to 
 void setPulseAmplitudeProximity(uint8_t amplitude){
     I2C_write_with_params(MAX30105_LED_PROX_AMP, amplitude);
 }
 
+//function which sets the amplitude of the IR LED 
+//amplitude - amplitude value to set to for IR LED
 void setPulseAmplitudeIR(uint8_t amplitude) {
   I2C_write_with_params(MAX30105_LED2_PULSEAMP, amplitude);
 }
 
+//function that wakes up the MAX30102 sensor from a low-power state.
 void max30102_wakeUp(void) {
   bitMask(MAX30102_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_WAKEUP);
 }
 
+//function that enables a time slot for a specific device 
+//slot number - slot to set as
+//device - device to be enabled with slot
 void max30102_enableSlot(uint8_t slotNumber, uint8_t device) {
     switch (slotNumber) {
         case 1:
@@ -506,43 +594,55 @@ void max30102_enableSlot(uint8_t slotNumber, uint8_t device) {
 }
     
 
-
+//Puts the MAX30102 sensor into a low-power shutdown mode.
 void max30102_shutdown(void) {
     bitMask(MAX30102_MODECONFIG, MAX30105_SHUTDOWN_MASK, MAX30105_SHUTDOWN);
 }
 
-
+//function which sets the Analog-to-Digital Converter (ADC) range for sensor measurements.
+//adcRange - adcRange value to set to for the ADC
 void max30102_setADC(uint8_t adcRange) {
   bitMask(MAX30105_PARTICLECONFIG, MAX30105_ADCRANGE_MASK, adcRange);
 }
 
+//function which sets the sample rate range for sensor measurements.
+//sampleRate - sample rate value to set 
 void max30102_setSampleRate(uint8_t sampleRate) {
   // sampleRate: MAX30105_SAMPLERATE_50, _100, _200, _400, _800, _1000, _1600, _3200
   bitMask(MAX30105_PARTICLECONFIG, MAX30105_SAMPLERATE_MASK, sampleRate);
 }
 
+//function that sets the number of samples for FIFO buffer averaging.
+//numSamples - samples to set for the FIFO average
 void max30102_setFIFOAvg(uint8_t numSamples) {
   bitMask(MAX30105_FIFOCONFIG, MAX30105_SAMPLEAVG_MASK, numSamples);
 }
 
+//function which clears the FIFO buffer of the MAX30102 sensor.
 void max30102_clearFIFO(void) {
   I2C_write_with_params(MAX30105_FIFOWRITEPTR, 0);
   I2C_write_with_params(MAX30105_FIFOOVERFLOW, 0);
   I2C_write_with_params(MAX30105_FIFOREADPTR, 0);
 }
 
+//Enables FIFO buffer rollover to prevent overflow.
 void max30102_enableFIFORollover(void) {
   bitMask(MAX30105_FIFOCONFIG, MAX30105_ROLLOVER_MASK, MAX30105_ROLLOVER_ENABLE);
 }
 
+//Disables FIFO buffer rollover.
 void max30102_disableFIFORollover(void) {
   bitMask(MAX30105_FIFOCONFIG, MAX30105_ROLLOVER_MASK, MAX30105_ROLLOVER_DISABLE);
 }
 
+//Sets the number of samples to trigger the FIFO almost full interrupt.
+//numberOfSamples for the FIFO
 void max30102_setFIFOAlmostFull(uint8_t numberOfSamples) {
   bitMask(MAX30105_FIFOCONFIG, MAX30105_A_FULL_MASK, numberOfSamples);
 }
 
+//Sets the proximity detection threshold.
+//threshMSB  - signifies only the 8 most significant-bits of the ADC count.
 void max30102_setProximityThreshold(uint8_t threshMSB) {
   // Set the IR ADC count that will trigger the beginning of particle-sensing mode.
   // The threshMSB signifies only the 8 most significant-bits of the ADC count.
@@ -560,6 +660,7 @@ uint8_t max30102_getReadPointer(void) {
   return (I2C_read_with_params(MAX30105_FIFOREADPTR));
 }
 
+//Reads the temperature data from the MAX30102 sensor using algorithm
 void max30102_readTemp(){
     I2C_write_with_params(MAX30105_DIETEMPCONFIG, 0X01);
     overflow = 0;
@@ -581,15 +682,17 @@ void max30102_readTemp(){
 //    return (temp);
 //}
 
-//interrupt config
+//interrupt config for interrupt1
 uint8_t max30102_int1(){
     return (I2C_read_with_params(MAX30105_INTSTAT1));
 }
 
+//interrupt config for interrupt2
 uint8_t max30102_int2(){
     return (I2C_read_with_params(MAX30105_INTSTAT2));
 }
 
+//configs and setups a software reset of the MAX30102 sensor.
 void softReset(void) {
     bitMask(MAX30102_MODECONFIG, MAX30105_RESET_MASK, MAX30105_RESET);
 
@@ -610,7 +713,9 @@ void softReset(void) {
 //  return (numberOfSamples);
 //}
 
-//ask cole
+//Reads multiple bytes from a specific register address over I2C communication.
+//reg- the register to read from
+// numSamples - number of samples to read
 void I2C_read_multiple_bytes_params(uint8_t reg, int numSamples) {
     I2C_start();
     I2C_write(MAX30102_ADDRESS_WRITE);
@@ -698,6 +803,9 @@ void getNewData(uint8_t reg, int numSamples) {
 
 }
 
+/*
+ * follows the datasheet algorithm to get the read in the data from the sensor.  
+ */
 void getNewData2(void) {
     uint8_t readPointer = max30102_getReadPointer();
     uint8_t writePointer = max30102_getWritePointer();
@@ -750,7 +858,10 @@ void getNewData2(void) {
     I2C_stop(); // Stop I2C communication after reading all data
 }
 
-
+/*
+ * setup algorithm for the spo2
+ * sets all the correct parameters all separated by a delay. 
+ */
 void max30102_setup_spo2(){
     delay_ms(100);
     softReset();
@@ -863,6 +974,8 @@ void setup() {
 #define MOVING_AVG_SIZE_HR 40
 
 // Function to calculate moving average
+//buffer - buffer to sum from 
+//size - size of the buffer
 uint32_t calculateMovingAverage(uint32_t *buffer, int size) {
     uint32_t sum = 0;
     for (int i = 0; i < size; i++) {
