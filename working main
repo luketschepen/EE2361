@@ -859,8 +859,8 @@ void setup() {
 
 
 
-#define MOVING_AVG_SIZE_SPO2 20 // Adjust the moving average size as needed
-#define MOVING_AVG_SIZE_HR 10
+#define MOVING_AVG_SIZE_SPO2 10 // Adjust the moving average size as needed
+#define MOVING_AVG_SIZE_HR 40
 
 // Function to calculate moving average
 uint32_t calculateMovingAverage(uint32_t *buffer, int size) {
@@ -870,6 +870,7 @@ uint32_t calculateMovingAverage(uint32_t *buffer, int size) {
     }
     return sum / size;
 }
+
 
 
 
@@ -890,15 +891,17 @@ int main(void) {
         getRead();
         // Read 100 samples into the buffers
         for (int i = 0; i < 100; i++) {
-            irBuffer[i] = max30102_IR_getBuff();    // Get one IR sample
-            redBuffer[i] =  max30102_RED_getBuff();  // Get one Red sample
+//            if (max30102_IR_getBuff() > 80000 || max30102_RED_getBuff() > 80000 ) {
+                     irBuffer[i] = max30102_IR_getBuff();    // Get one IR sample
+                    redBuffer[i] =  max30102_RED_getBuff();  // Get one Red sample
+           // }
         }
 
         // Process the collected data
         maxim_heart_rate_and_oxygen_saturation(irBuffer, 100, redBuffer, &spo2, &validSpo2, &heartRate, &validHeartRate);
         
         
-        if (spo2 > 75 && spo2 <= 100) {
+        if (spo2 > 75) {
 
 
              // Update heart rate buffer with latest value
@@ -931,10 +934,9 @@ int main(void) {
             //sprintf(adStr, "SPO2: %d %%", (int)spo2);
             sprintf(adStr, "SPO2: %d %%", (int)spo2Avg);
             lcd_printStr(adStr);
-
+            
             setCursor(0,1);
             //sprintf(adStr2, "Heart: %d BPM", (int)heartRate);
-
             sprintf(adStr2, "Heart: %d BPM", (int)heartRateAvg);
   
             lcd_printStr(adStr2);
