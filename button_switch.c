@@ -16,7 +16,7 @@ volatile unsigned long int overflow = 0;
 volatile int prevState = 0;
 
 /**
- * Initializes the button for lab usage.
+ * Initializes the button for usage.
  */
 void initButton() {
     // Set RB7 (Pin 6) as input for the button
